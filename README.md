@@ -27,9 +27,7 @@ This video shows our system overview, a walkthrough of the code, how to run it, 
 
 For this project, we successfully built a robot that meets the core requirements. What worked really well was our modular `car_tui.py` script, which handles all the sensor readings and motor controls in one place. Using a `config.json` file was also a good decision, as it kept our API keys and pins out of the main code.
 
-The most difficult part was **calibrating the line-following algorithm** to work consistently across different lighting conditions and line thicknesses. We spent a lot of time adjusting the PID parameters and motor speeds to find the right balance between responsiveness and stability. Another challenge was **setting up the MQTT telemetry system** to reliably publish sensor data without exceeding Adafruit IO's rate limits while ensuring the data was accurate and timely.
-
-The **hardware integration** between the Raspberry Pi, sensors, and motor driver required careful attention to wiring and power management. We had to ensure proper grounding and power isolation to prevent interference between the control signals and motor power.
+The most difficult part was **calibrating the line-following algorithm** to work consistently across different lighting conditions. We spent a lot of time adjusting PID parameters and motor speeds to find the right balance. Another challenge was **setting up the MQTT telemetry system** to reliably publish sensor data without exceeding Adafruit IO's rate limits.
 
 If we had more time, we would improve the line-following algorithm with better PID tuning and add more sophisticated obstacle avoidance.
 
