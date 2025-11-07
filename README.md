@@ -19,7 +19,7 @@ Here are the links for our Milestone 2 submission.
 
 This video shows our system overview, a walkthrough of the code, how to run it, and a live demo of the robot, and sending data to the dashboard.
 
-**Link: []**
+**Link: [...]**
 
 ---
 
