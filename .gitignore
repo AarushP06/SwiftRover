@@ -1,0 +1,11 @@
+pycache/
+*.pyc
+.venv/
+logs/
+captured_images/
+*.h264
+*.jpg
+*.jpeg
+*.png
+.idea/
+.vscode/
