@@ -310,18 +310,18 @@ def handle_motor_control(action):
 
         speed = 800
         turn_power = 1200
-        # motor.py inverts all values, so to go forward we send negative values
-        # Forward: send -speed, motor.py inverts to +speed (forward)
-        # Backward: send +speed, motor.py inverts to -speed (backward)
+        drive_sign = -1  
 
         if action == "forward":
-            car.set_motor_model(-int(speed), -int(speed), -int(speed), -int(speed))
+            # Swap: forward currently goes backward, so use opposite
+            car.set_motor_model(-int(speed)*drive_sign, -int(speed)*drive_sign, -int(speed)*drive_sign, -int(speed)*drive_sign)
         elif action == "backward":
-            car.set_motor_model(int(speed), int(speed), int(speed), int(speed))
+            # Swap: backward currently goes forward, so use opposite
+            car.set_motor_model(int(speed)*drive_sign, int(speed)*drive_sign, int(speed)*drive_sign, int(speed)*drive_sign)
         elif action == "left":
-            car.set_motor_model(int(turn_power), int(turn_power), -int(turn_power), -int(turn_power))
+            car.set_motor_model(-int(turn_power)*drive_sign, -int(turn_power)*drive_sign, +int(turn_power)*drive_sign, +int(turn_power)*drive_sign)
         elif action == "right":
-            car.set_motor_model(-int(turn_power), -int(turn_power), int(turn_power), int(turn_power))
+            car.set_motor_model(+int(turn_power)*drive_sign, +int(turn_power)*drive_sign, -int(turn_power)*drive_sign, -int(turn_power)*drive_sign)
         elif action == "stop":
             car.set_motor_model(0, 0, 0, 0)
 
