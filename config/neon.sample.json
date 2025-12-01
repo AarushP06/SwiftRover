@@ -1,0 +1,4 @@
+{
+  "connection": "postgresql://username:password@host:port/database?sslmode=require",
+  "table": "telemetry"
+}

@@ -1,10 +1,24 @@
 #!/usr/bin/env python3
-import os, json, time, base64, datetime, csv, ssl
+import os, json, time, base64, datetime, csv, ssl, sys
 from pathlib import Path
 from typing import Optional
 import paho.mqtt.client as mqtt
+import psycopg2
+import json
+from pathlib import Path
+
 
 BASE = Path(__file__).resolve().parent
+PROJECT_ROOT = BASE.parent.parent  # Go up to project root
+
+# Import database sync functions
+try:
+    import sys
+    sys.path.insert(0, str(BASE.parent))
+    from database_sync import save_to_local_db, sync_to_cloud, check_internet, init_local_db
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
 
 # Cache files written by car_tui.py and line_follow.py
 IR_CACHE    = Path("/tmp/ir_lmr.txt")     # "L M R" as three ints
@@ -18,10 +32,54 @@ try:
 except Exception:
     pass
 
+
+def neon_insert(ultra, L, M, R, line_state, cam_status):
+    try:
+        # Try config/neon.json in project root
+        neon_config_path = PROJECT_ROOT / "config" / "neon.json"
+        if not neon_config_path.exists():
+            # Fallback to old location if exists
+            return  # Silently skip if config doesn't exist
+        
+        cfg = json.loads(neon_config_path.read_text())
+        conn = psycopg2.connect(cfg["connection"])
+        cur = conn.cursor()
+        cur.execute("""
+            INSERT INTO telemetry
+                (ultrasonic_cm, ir_left, ir_center, ir_right, line_state, camera_status)
+            VALUES (%s, %s, %s, %s, %s, %s);
+        """, (ultra, L, M, R, line_state, cam_status))
+        conn.commit()
+        cur.close()
+        conn.close()
+    except Exception as e:
+        # Silently fail - neon database is optional
+        pass
+
+
+# Optional picamera2 (better for Raspberry Pi)
+Picamera2 = None
+try:
+    from picamera2 import Picamera2
+    Picamera2 = Picamera2
+except Exception:
+    pass
+
 def now_iso(): return datetime.datetime.now().isoformat(timespec="seconds")
 
 def load_cfg():
-    cfg = json.loads((BASE/"adafruit.json").read_text())
+    # Check for environment override first (set by telemetry_runner.py)
+    override_path = os.environ.get("AIO_CFG_OVERRIDE")
+    if override_path and Path(override_path).exists():
+        cfg = json.loads(Path(override_path).read_text())
+    else:
+        # Try config/adafruit.json in project root
+        config_path = PROJECT_ROOT / "config" / "adafruit.json"
+        if config_path.exists():
+            cfg = json.loads(config_path.read_text())
+        else:
+            # Fallback to old location
+            cfg = json.loads((BASE/"adafruit.json").read_text())
     a = cfg["adafruit"] if "adafruit" in cfg else cfg
     username = a.get("username") or a.get("user")
     key      = a.get("key") or a.get("aio_key")
@@ -62,31 +120,128 @@ def read_ultra_cached(max_age=2.5) -> Optional[float]:
 class CamReader:
     def __init__(self):
         self.cap = None
-        if cv2:
+        self.picam = None
+        self.prev_frame = None
+        # Try picamera2 first (better for Raspberry Pi)
+        if Picamera2:
+            try:
+                self.picam = Picamera2()
+                self.picam.start()
+                print("[telemetry] Camera initialized with picamera2", file=sys.stderr)
+            except Exception as e:
+                print(f"[telemetry] picamera2 failed: {e}, trying OpenCV...", file=sys.stderr)
+                self.picam = None
+        # Fallback to OpenCV
+        if not self.picam and cv2:
             try:
                 cap = cv2.VideoCapture(0)
                 if cap and cap.isOpened():
                     self.cap = cap
-            except Exception:
+                    print("[telemetry] Camera initialized with OpenCV", file=sys.stderr)
+            except Exception as e:
+                print(f"[telemetry] OpenCV failed: {e}", file=sys.stderr)
                 self.cap = None
     def status(self) -> str:
-        return "online" if self.cap else "offline"
-    def thumb_b64(self, width=160) -> Optional[str]:
+        return "online" if (self.picam or self.cap) else "offline"
+    def thumb_b64(self, width=80, quality=40) -> Optional[str]:
+        # Try picamera2 first
+        # Make smaller thumbnail to fit Adafruit IO 1KB limit
+        if self.picam:
+            try:
+                # Capture image (picamera2 returns PIL Image)
+                img = self.picam.capture_image()
+                # Resize using PIL - smaller size for Adafruit IO limit
+                from PIL import Image
+                import io
+                h, w = img.size
+                scale = width / float(w)
+                new_w, new_h = int(w*scale), int(h*scale)
+                img_resized = img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                # Convert to JPEG bytes with lower quality to reduce size
+                buf = io.BytesIO()
+                img_resized.save(buf, format='JPEG', quality=quality, optimize=True)
+                buf.seek(0)
+                img_bytes = buf.read()
+                img_b64 = base64.b64encode(img_bytes).decode("ascii")
+                # Check size - Adafruit IO limit is 1024 bytes
+                if len(img_b64) > 1000:  # Leave some margin
+                    # Try even smaller/lower quality
+                    img_resized = img.resize((60, 45), Image.Resampling.LANCZOS)
+                    buf = io.BytesIO()
+                    img_resized.save(buf, format='JPEG', quality=30, optimize=True)
+                    buf.seek(0)
+                    img_bytes = buf.read()
+                    img_b64 = base64.b64encode(img_bytes).decode("ascii")
+                return img_b64
+            except Exception as e:
+                print(f"[telemetry] picamera2 capture failed: {e}", file=sys.stderr)
+                return None
+        # Fallback to OpenCV
+        if self.cap and cv2:
+            try:
+                ok, frame = self.cap.read()
+                if not ok: return None
+                h, w = frame.shape[:2]
+                # Smaller size for Adafruit IO 1KB limit
+                scale = 80 / float(w)  # Smaller default width
+                frame = cv2.resize(frame, (int(w*scale), int(h*scale)))
+                ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 30])  # Lower quality
+                if not ok: return None
+                img_b64 = base64.b64encode(buf.tobytes()).decode("ascii")
+                # Check size - Adafruit IO limit is 1024 bytes
+                if len(img_b64) > 1000:  # Leave some margin
+                    # Try even smaller
+                    frame = cv2.resize(frame, (60, 45))
+                    ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 25])
+                    if ok:
+                        img_b64 = base64.b64encode(buf.tobytes()).decode("ascii")
+                return img_b64
+            except Exception:
+                return None
+        return None
+    def get_motion_value(self) -> Optional[float]:
+        """Get motion detection value (0-100) as Sensor 3 data"""
         if not (self.cap and cv2): return None
         try:
             ok, frame = self.cap.read()
             if not ok: return None
-            h, w = frame.shape[:2]
-            scale = width / float(w)
-            frame = cv2.resize(frame, (int(w*scale), int(h*scale)))
-            ok, buf = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), 60])
+            # Convert to grayscale for motion detection
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            # Resize for faster processing
+            gray = cv2.resize(gray, (160, 120))
+            if self.prev_frame is not None:
+                # Calculate frame difference
+                diff = cv2.absdiff(self.prev_frame, gray)
+                # Calculate motion percentage
+                motion_pixels = cv2.countNonZero(diff)
+                total_pixels = diff.shape[0] * diff.shape[1]
+                motion_percent = (motion_pixels / total_pixels) * 100.0
+                self.prev_frame = gray
+                return round(motion_percent, 2)
+            else:
+                # First frame, just store it
+                self.prev_frame = gray
+                return 0.0
+        except Exception:
+            return None
+    def get_brightness(self) -> Optional[float]:
+        """Get average brightness (0-255) as alternative sensor value"""
+        if not (self.cap and cv2): return None
+        try:
+            ok, frame = self.cap.read()
             if not ok: return None
-            return base64.b64encode(buf.tobytes()).decode("ascii")
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+            brightness = cv2.mean(gray)[0]
+            return round(brightness, 2)
         except Exception:
             return None
     def close(self):
         try:
-            if self.cap: self.cap.release()
+            if self.picam:
+                self.picam.stop()
+                self.picam.close()
+            if self.cap:
+                self.cap.release()
         except Exception: pass
 
 # ---------- MQTT (TLS + reconnect/backoff) ----------
@@ -170,10 +325,16 @@ class Telemetry:
         self.dt_ir  = intervals["infrared_sec"]
         self.dt_us  = intervals["ultrasonic_sec"]
         self.dt_cam = intervals["camera_sec"]
-        self.t_ir = self.t_us = self.t_cam = 0.0
+        self.t_ir = self.t_us = self.t_cam = self.t_sync = 0.0
+        self.last_ultrasonic = None  # Keep last known ultrasonic value
         self.cam = CamReader() if (os.environ.get("TELEM_SKIP_CAM") != "1") else None
         self.log = CsvLogger(BASE / log_cfg.get("path","logs/telemetry.csv")) if log_cfg.get("enabled",True) else None
         self.stop = False
+        
+        # Initialize database if available
+        if DB_AVAILABLE:
+            init_local_db()
+            print("[telemetry] database initialized (local SQLite + cloud sync)")
 
     def loop(self):
         print("[telemetry] (cache-only, TLS) started. Ctrl+C to stop.")
@@ -186,6 +347,7 @@ class Telemetry:
                     self.t_us = t
                     d = read_ultra_cached()
                     if d is not None:
+                        self.last_ultrasonic = float(d)  # Store last known value
                         self.pub.pub(self.feeds["ultrasonic_cm"], f"{d:.1f}")
 
                 # Infrared from cache
@@ -199,16 +361,36 @@ class Telemetry:
                         self.pub.pub(self.feeds["ir_right"],  R)
                         line_state = f"{'L' if L else '_'}{'M' if M else '_'}{'R' if R else '_'}"
                         self.pub.pub(self.feeds["line_state"], line_state)
+                        status = (self.cam.status() if self.cam else "offline")
+                        # Get ultrasonic value for neon_insert
+                        d = read_ultra_cached() or self.last_ultrasonic
+                        neon_insert(d, L, M, R, line_state, status)
 
-                # Camera (optional, non-GPIO)
+                        # Save to local database with both IR and ultrasonic (use last known ultrasonic)
+                        if DB_AVAILABLE:
+                            timestamp = datetime.datetime.now().isoformat()
+                            # Use last known ultrasonic value if available
+                            d = read_ultra_cached() or self.last_ultrasonic
+                            save_to_local_db(
+                                timestamp=timestamp,
+                                ultrasonic=float(d) if d is not None else None,
+                                ir_left=int(L) if L is not None else None,
+                                ir_center=int(M) if M is not None else None,
+                                ir_right=int(R) if R is not None else None,
+                                line_state=line_state if line_state else None
+                            )
+                
+                # Camera (Sensor 3) - Send thumbnail image via camera_motion feed
                 if t - self.t_cam >= self.dt_cam:
                     self.t_cam = t
                     status = (self.cam.status() if self.cam else "offline")
                     self.pub.pub(self.feeds["camera_status"], status)
+                    # Send camera thumbnail (base64) to camera_motion feed
                     if self.cam:
                         thumb = self.cam.thumb_b64()
                         if thumb:
-                            self.pub.pub(self.feeds["camera_thumb"], thumb)
+                            # Send thumbnail base64 image to camera_motion feed
+                            self.pub.pub(self.feeds.get("camera_motion", "cam-motion"), thumb)
 
                 # Local CSV ~1Hz
                 if self.log and (int(t*10)%10 == 0):
@@ -217,6 +399,18 @@ class Telemetry:
                     if v: L,M,R = v; line_state = f"{'L' if L else '_'}{'M' if M else '_'}{'R' if R else '_'}"
                     else: L=M=R=""; line_state="___"
                     self.log.log(d, L, M, R, line_state, (self.cam.status() if self.cam else "offline"))
+
+                # Sync local database to cloud every 30 seconds (faster updates)
+                if DB_AVAILABLE and (t - self.t_sync >= 30):
+                    self.t_sync = t
+                    if check_internet():
+                        result = sync_to_cloud()
+                        if result:
+                            print(f"[telemetry] synced local database to cloud at {datetime.datetime.now().strftime('%H:%M:%S')}", file=sys.stderr)
+                        else:
+                            print(f"[telemetry] WARNING: cloud sync failed at {datetime.datetime.now().strftime('%H:%M:%S')}", file=sys.stderr)
+                    else:
+                        print("[telemetry] No internet connection, skipping cloud sync", file=sys.stderr)
 
                 time.sleep(0.05)
         except KeyboardInterrupt:
@@ -227,5 +421,11 @@ class Telemetry:
             self.pub.close()
 
 if __name__ == "__main__":
-    cfg = json.load(open(BASE/"adafruit.json"))
+    # Load config from project root
+    config_path = PROJECT_ROOT / "config" / "adafruit.json"
+    if config_path.exists():
+        cfg = json.load(open(config_path))
+    else:
+        # Fallback to old location
+        cfg = json.load(open(BASE/"adafruit.json"))
     Telemetry(cfg).loop()

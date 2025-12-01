@@ -1,14 +1,35 @@
-pycache/
+# Python
+__pycache__/
 *.pyc
 .venv/
+venv/
+
+# Local data/logs/artifacts
+data/
 logs/
+*.csv
+*.jsonl
+
+# Secrets / config (keep samples instead)
+src/adafruit.json
+src/.merged_adafruit.json
+config/adafruit.json
+config/neon.json
+config/*.env
+*.env
+
+# Local database
+db/
+
+# Captured images
 captured_images/
 *.h264
 *.jpg
 *.jpeg
 *.png
+
+# OS/editor
+.DS_Store
+*.swp
 .idea/
 .vscode/
-config/adafruit.json
-config/neon.json
-config/app.json

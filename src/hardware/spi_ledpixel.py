@@ -11,11 +11,26 @@ class Freenove_SPI_LedPixel(object):
     def _get_spi_mode_from_params(self):
         try:
             import json
-            with open('params.json','r') as f:
+            from pathlib import Path
+
+            # Check config/ directory first, then current directory
+            config_path = Path(__file__).parent.parent.parent / "config" / "params.json"
+
+            if not config_path.exists():
+                config_path = Path(__file__).parent.parent / "params.json"
+
+            if not config_path.exists():
+                config_path = Path("params.json")
+
+            with open(config_path, 'r') as f:
                 j = json.load(f)
+
             m = int(j.get('Spi_Mode', 1))
+
             return 4 if m == 4 else 1
+
         except Exception:
+
             return 1
 
     def __init__(self, count=8, bright=255, sequence='GRB', bus=0, device=0):
