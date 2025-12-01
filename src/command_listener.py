@@ -317,9 +317,11 @@ def handle_motor_control(action):
         elif action == "backward":
             car.set_motor_model(-int(speed)*drive_sign, -int(speed)*drive_sign, -int(speed)*drive_sign, -int(speed)*drive_sign)
         elif action == "left":
-            car.set_motor_model(-int(turn_power)*drive_sign, -int(turn_power)*drive_sign, +int(turn_power)*drive_sign, +int(turn_power)*drive_sign)
-        elif action == "right":
+            # Swap signs to fix left/right direction (motor.py swaps duty1/duty2 with duty3/duty4)
             car.set_motor_model(+int(turn_power)*drive_sign, +int(turn_power)*drive_sign, -int(turn_power)*drive_sign, -int(turn_power)*drive_sign)
+        elif action == "right":
+            # Swap signs to fix left/right direction (motor.py swaps duty1/duty2 with duty3/duty4)
+            car.set_motor_model(-int(turn_power)*drive_sign, -int(turn_power)*drive_sign, +int(turn_power)*drive_sign, +int(turn_power)*drive_sign)
         elif action == "stop":
             car.set_motor_model(0, 0, 0, 0)
 
@@ -403,13 +405,19 @@ def handle_line_tracking(command):
         release_infrared()
         time.sleep(0.5)  # Give GPIO time to fully release
 
-        # Start line following script
+        # Start line following script with proper arguments (matching car_tui.py)
         script = BASE_DIR / "line_follow.py"
         try:
             # Don't capture stdout/stderr - let it print to console for debugging
             # This prevents buffering issues and allows seeing real-time output
+            # Arguments match car_tui.py for consistent behavior
             process = subprocess.Popen(
-                ["python3", str(script)],
+                ["python3", str(script),
+                 "--invert-drive", "--invert-steer", "--debug",
+                 "--loss-confirm", "10", "--coast-scale", "0.85", "--loss-timeout", "0",
+                 "--kp", "1000", "--kd", "380", "--base-straight", "420", "--base-min", "180",
+                 "--tp-gamma", "1.2", "--pivot", "--pivot-err", "0.6", "--pivot-power", "1200",
+                 "--period", "0.05", "--bias-ambig"],
                 stdout=None,  # Don't capture - print to console
                 stderr=None,  # Don't capture - print to console
                 preexec_fn=os.setsid  # Start in new process group
