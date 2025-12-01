@@ -1,0 +1,208 @@
+{% extends "base.html" %}
+{% block title %}Dashboard - SwiftRover{% endblock %}
+{% block content %}
+<div class="container">
+  <h1 class="page-title">📊 Live Dashboard</h1>
+
+  <div class="dashboard-grid">
+    <!-- Ultrasonic Distance -->
+    <div class="card">
+      <div class="card-header">
+        <h3>📏 Distance Sensor</h3>
+      </div>
+      <div class="card-body">
+        <div class="sensor-value" id="ultrasonic-value">--</div>
+        <div class="sensor-unit">centimeters</div>
+        <div class="sensor-update" id="ultrasonic-update">awaiting data...</div>
+      </div>
+    </div>
+
+    <!-- IR Left -->
+    <div class="card">
+      <div class="card-header">
+        <h3>◀ Left Line Sensor</h3>
+      </div>
+      <div class="card-body">
+        <div class="sensor-value" id="ir-left-value">--</div>
+        <div class="sensor-unit">detection</div>
+        <div class="sensor-update" id="ir-left-update">awaiting data...</div>
+      </div>
+    </div>
+
+    <!-- IR Center -->
+    <div class="card">
+      <div class="card-header">
+        <h3>● Center Line Sensor</h3>
+      </div>
+      <div class="card-body">
+        <div class="sensor-value" id="ir-center-value">--</div>
+        <div class="sensor-unit">detection</div>
+        <div class="sensor-update" id="ir-center-update">awaiting data...</div>
+      </div>
+    </div>
+
+    <!-- IR Right -->
+    <div class="card">
+      <div class="card-header">
+        <h3>▶ Right Line Sensor</h3>
+      </div>
+      <div class="card-body">
+        <div class="sensor-value" id="ir-right-value">--</div>
+        <div class="sensor-unit">detection</div>
+        <div class="sensor-update" id="ir-right-update">awaiting data...</div>
+      </div>
+    </div>
+
+    <!-- Camera Feed -->
+    <div class="card">
+      <div class="card-header">
+        <h3>📷 Camera Feed</h3>
+      </div>
+      <div class="card-body">
+        <div style="text-align: center; margin-top: 10px">
+          <img
+            id="camera-motion-image"
+            src=""
+            alt="Camera Feed"
+            style="
+              max-width: 100%;
+              max-height: 250px;
+              border-radius: 12px;
+              border: 2px solid var(--accent-blue);
+              display: none;
+              cursor: pointer;
+              box-shadow: 0 0 15px rgba(66, 165, 245, 0.4);
+            "
+            onclick="showCameraModal(this.src)"
+          />
+          <div
+            id="camera-motion-placeholder"
+            style="
+              padding: 30px;
+              color: var(--text-muted);
+              font-size: 0.9em;
+            "
+          >
+            📹 No camera feed available
+          </div>
+        </div>
+        <div class="sensor-update" id="camera-motion-update" style="margin-top: 10px">
+          awaiting data...
+        </div>
+        <div style="margin-top: 15px; text-align: center">
+          <button class="btn btn-primary" onclick="refreshCamera()" style="padding: 10px 20px; font-size: 0.9em">
+            🔄 Refresh Camera
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Line State -->
+    <div class="card">
+      <div class="card-header">
+        <h3>📍 Line State</h3>
+      </div>
+      <div class="card-body">
+        <div class="sensor-value" id="line-state-value">---</div>
+        <div class="sensor-unit">pattern</div>
+        <div class="sensor-update" id="line-state-update">awaiting data...</div>
+      </div>
+    </div>
+
+    <!-- System Status -->
+    <div class="card">
+      <div class="card-header">
+        <h3>⚙️ System Status</h3>
+      </div>
+      <div class="card-body">
+        <div style="margin-bottom: 1.5rem;">
+          <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">Connection</div>
+          <div style="color: var(--accent-blue); font-size: 1.1rem;">✓ ONLINE</div>
+        </div>
+        <div style="margin-bottom: 1.5rem;">
+          <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">Last Update</div>
+          <div id="last-update" style="color: var(--text-secondary);">--</div>
+        </div>
+        <div>
+          <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">Version</div>
+          <div style="color: var(--text-secondary);">SwiftRover v3.0</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Quick Actions -->
+  <div style="margin-top: 3rem; margin-bottom: 2rem;">
+    <h2 style="font-family: 'Space Grotesk', sans-serif; font-size: 1.5rem; margin-bottom: 1.5rem; color: var(--text-primary);">⚡ Quick Actions</h2>
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem;">
+      <a href="{{ url_for('sensor_data') }}" class="btn btn-primary">📊 Sensors</a>
+      <a href="{{ url_for('control_car') }}" class="btn btn-primary">🎮 Control</a>
+      <a href="{{ url_for('line_tracking') }}" class="btn btn-primary">📍 Line Track</a>
+      <a href="{{ url_for('obstacle_avoidance') }}" class="btn btn-primary">🚧 Obstacles</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  // Live data fetch
+  async function updateLiveData() {
+    try {
+      const response = await fetch('/api/live-data');
+      const data = await response.json();
+
+      document.getElementById('ultrasonic-value').textContent = data.ultrasonic_cm || '--';
+      document.getElementById('ir-left-value').textContent = data.ir_left || '--';
+      document.getElementById('ir-center-value').textContent = data.ir_center || '--';
+      document.getElementById('ir-right-value').textContent = data.ir_right || '--';
+      document.getElementById('line-state-value').textContent = data.line_state || '---';
+
+      document.getElementById('ultrasonic-update').textContent = formatDate(data.timestamp);
+      document.getElementById('ir-left-update').textContent = formatDate(data.timestamp);
+      document.getElementById('ir-center-update').textContent = formatDate(data.timestamp);
+      document.getElementById('ir-right-update').textContent = formatDate(data.timestamp);
+      document.getElementById('line-state-update').textContent = formatDate(data.timestamp);
+      document.getElementById('last-update').textContent = formatDate(data.timestamp);
+
+      if (data.camera_motion) {
+        const img = document.getElementById('camera-motion-image');
+        img.src = 'data:image/jpeg;base64,' + data.camera_motion;
+        img.style.display = 'block';
+        document.getElementById('camera-motion-placeholder').style.display = 'none';
+      }
+
+      document.getElementById('camera-motion-update').textContent = formatDate(data.timestamp);
+    } catch (error) {
+      console.error('Error fetching live data:', error);
+    }
+  }
+
+  function refreshCamera() {
+    fetch('/api/capture-photo', { method: 'POST' })
+      .then(r => r.json())
+      .then(d => showNotification('Camera refreshed', 'success'))
+      .catch(e => showNotification('Camera refresh failed', 'error'));
+  }
+
+  function showCameraModal(src) {
+    const modal = document.createElement('div');
+    modal.style.cssText = `
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.9); z-index: 2000;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer;
+    `;
+    const img = document.createElement('img');
+    img.src = src;
+    img.style.cssText = 'max-width: 90vw; max-height: 90vh; border-radius: 12px; box-shadow: 0 0 40px rgba(66, 165, 245, 0.5);';
+    modal.appendChild(img);
+    modal.onclick = () => modal.remove();
+    document.body.appendChild(modal);
+  }
+
+  // Update every 2 seconds
+  updateLiveData();
+  setInterval(updateLiveData, 2000);
+</script>
+{% endblock %}

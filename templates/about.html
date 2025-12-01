@@ -1,0 +1,229 @@
+{% extends "base.html" %}
+{% block title %}About - SwiftRover{% endblock %}
+{% block content %}
+<div class="container">
+  <h1 class="page-title">ℹ️ About SwiftRover</h1>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 2rem;">
+    <div class="card">
+      <div class="card-header">
+        <h2>🎓 Project Information</h2>
+      </div>
+      <div class="card-body">
+        <div style="margin-bottom: 1rem;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.3rem;">Course</div>
+          <div style="color: var(--text-secondary);">420-N55: IoT - Design and Prototyping</div>
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.3rem;">Institution</div>
+          <div style="color: var(--text-secondary);">Champlain College Saint-Lambert</div>
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.3rem;">Professor</div>
+          <div style="color: var(--text-secondary);">Haikel Hichri</div>
+        </div>
+        <div style="margin-bottom: 1rem;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.3rem;">Semester</div>
+          <div style="color: var(--text-secondary);">Fall 2025</div>
+        </div>
+        <div>
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.3rem;">Milestone</div>
+          <div style="color: var(--text-secondary);">3 - Complete System Integration</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>👥 Team</h2>
+      </div>
+      <div class="card-body">
+        <div style="margin-bottom: 1.5rem;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">Team Members</div>
+          <div style="color: var(--text-secondary); line-height: 1.8;">
+            • Mir Faiyazur Rahman<br/>
+            • Aarush Patel
+          </div>
+        </div>
+        <div>
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">Roles</div>
+          <div style="color: var(--text-secondary); line-height: 1.8;">
+            • Hardware Integration<br/>
+            • Sensor Calibration<br/>
+            • Algorithm Development<br/>
+            • Web UI Development
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>🚗 System Overview</h2>
+      </div>
+      <div class="card-body">
+        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">
+          SwiftRover is a fully autonomous 4-wheel drive IoT robot featuring multiple sensors and advanced algorithms for line tracking and obstacle avoidance.
+        </p>
+        <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.8;">
+          <div style="color: var(--accent-blue); font-weight: 600;">Key Capabilities:</div>
+          • Real-time sensor monitoring<br/>
+          • Autonomous navigation<br/>
+          • Remote control via web UI<br/>
+          • Cloud data synchronization<br/>
+          • MQTT command integration
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 2rem;">
+    <div class="card-header">
+      <h2>🛠️ Hardware Specifications</h2>
+    </div>
+    <div class="card-body">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
+        <div style="border-left: 3px solid var(--accent-blue); padding-left: 1.5rem;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">🖥️ Controller</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6;">
+            Raspberry Pi 4B<br/>
+            4GB RAM<br/>
+            Quad-core CPU<br/>
+            GPIO Pins: 40
+          </div>
+        </div>
+        <div style="border-left: 3px solid var(--accent-blue); padding-left: 1.5rem;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">📏 Distance Sensor</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6;">
+            HC-SR04 Ultrasonic<br/>
+            Range: 2cm - 400cm<br/>
+            Accuracy: ±3%<br/>
+            Frequency: 40kHz
+          </div>
+        </div>
+        <div style="border-left: 3px solid var(--accent-blue); padding-left: 1.5rem;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">🔍 Line Sensors</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6;">
+            3-Channel IR Array<br/>
+            Left, Center, Right<br/>
+            Detection Range: ~5cm<br/>
+            Response Time: <10ms
+          </div>
+        </div>
+        <div style="border-left: 3px solid var(--accent-blue); padding-left: 1.5rem;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">🚗 Motors</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6;">
+            2x DC Motors (4WD)<br/>
+            PCA9685 Driver<br/>
+            PWM Control<br/>
+            Speed: 0-255 steps
+          </div>
+        </div>
+        <div style="border-left: 3px solid var(--accent-blue); padding-left: 1.5rem;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">💡 Indicators</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6;">
+            8x WS2812B NeoPixels<br/>
+            Addressable RGB LEDs<br/>
+            SPI Control<br/>
+            Brightness: 0-255
+          </div>
+        </div>
+        <div style="border-left: 3px solid var(--accent-blue); padding-left: 1.5rem;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">🔔 Audio</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6;">
+            Piezo Buzzer<br/>
+            GPIO Controlled<br/>
+            Frequency: ~2.5kHz<br/>
+            Programmable Tones
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 2rem;">
+    <div class="card-header">
+      <h2>💻 Software Stack</h2>
+    </div>
+    <div class="card-body">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
+        <div>
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 1rem;">Backend</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 2;">
+            Python 3.11<br/>
+            Flask<br/>
+            SQLite3<br/>
+            PostgreSQL (Cloud)
+          </div>
+        </div>
+        <div>
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 1rem;">Frontend</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 2;">
+            HTML5<br/>
+            CSS3<br/>
+            JavaScript ES6<br/>
+            Chart.js
+          </div>
+        </div>
+        <div>
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 1rem;">IoT & Protocols</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem; line-height: 2;">
+            MQTT (Adafruit IO)<br/>
+            GPIO/SPI/I2C<br/>
+            HTTP REST API<br/>
+            WebSockets
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 2rem;">
+    <div class="card-header">
+      <h2>🎯 Key Features</h2>
+    </div>
+    <div class="card-body">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 2rem;">
+        <div style="padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">🚗 Autonomous Line Tracking</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem;">Follows black lines using PID-controlled steering with IR sensors</div>
+        </div>
+        <div style="padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">🚧 Obstacle Avoidance</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem;">Intelligently navigates around obstacles detected by ultrasonic sensor</div>
+        </div>
+        <div style="padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">📊 Data Logging</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem;">Records all sensor data to local database and optional cloud storage</div>
+        </div>
+        <div style="padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">🎮 Web Dashboard</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem;">Real-time monitoring and control via responsive web interface</div>
+        </div>
+        <div style="padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">☁️ Cloud Integration</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem;">Synchronizes data with Adafruit IO and cloud PostgreSQL database</div>
+        </div>
+        <div style="padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px;">
+          <div style="font-weight: 600; color: var(--accent-blue); margin-bottom: 0.5rem;">📱 MQTT Commands</div>
+          <div style="color: var(--text-secondary); font-size: 0.9rem;">Receives and executes commands via MQTT for remote operation</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 2rem;">
+    <div class="card-header">
+      <h2>📝 License & Attribution</h2>
+    </div>
+    <div class="card-body">
+      <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+        This project was developed as part of the IoT course at Champlain College Saint-Lambert.
+      </p>
+      <p style="color: var(--text-muted); font-size: 0.9rem;">
+        © 2025 SwiftRover Team. All rights reserved.
+      </p>
+    </div>
+  </div>
+</div>
+{% endblock %}

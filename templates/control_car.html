@@ -1,0 +1,123 @@
+{% extends "base.html" %} 
+{% block title %}Control - SwiftRover{% endblock %}
+{% block content %}
+<div class="container">
+  <h1 class="page-title">🎮 Manual Control</h1>
+
+  <div class="control-section">
+    <div class="card">
+      <div class="card-header">
+        <h2>🚗 Motor Control</h2>
+      </div>
+      <div class="card-body">
+        <div class="motor-control">
+          <div class="control-grid">
+            <div></div>
+            <button class="btn btn-primary btn-control btn-up" onclick="controlMotor('forward')">
+              ⬆️ FORWARD
+            </button>
+            <div></div>
+            <button class="btn btn-primary btn-control btn-left" onclick="controlMotor('left')">
+              ⬅️ LEFT
+            </button>
+            <button class="btn btn-stop btn-control" onclick="controlMotor('stop')">
+              ⏹️ STOP
+            </button>
+            <button class="btn btn-primary btn-control btn-right" onclick="controlMotor('right')">
+              ➡️ RIGHT
+            </button>
+            <div></div>
+            <button class="btn btn-primary btn-control btn-down" onclick="controlMotor('backward')">
+              ⬇️ REVERSE
+            </button>
+            <div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h2>⚡ Device Control</h2>
+      </div>
+      <div class="card-body">
+        <div class="device-controls">
+          <div class="device-item">
+            <h3>💡 LED Array</h3>
+            <button class="btn btn-success" onclick="controlLED('on')">ON</button>
+            <button class="btn btn-danger" onclick="controlLED('off')">OFF</button>
+          </div>
+          <div class="device-item">
+            <h3>🔔 Buzzer</h3>
+            <button class="btn btn-success" onclick="controlBuzzer('on')">ON</button>
+            <button class="btn btn-danger" onclick="controlBuzzer('off')">OFF</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="status-message" id="status-message" style="display: none;"></div>
+</div>
+{% endblock %} 
+
+{% block scripts %}
+<script>
+  function controlMotor(action) {
+    fetch("/api/control/motor", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: action }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        showStatus(
+          data.success ? `✓ Motor: ${action.toUpperCase()}` : "✗ Command Failed",
+          data.success
+        );
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+        showStatus("✗ Connection Error", false);
+      });
+  }
+
+  function controlLED(state) {
+    fetch("/api/control/led", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: state }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        showStatus(
+          data.success ? `✓ LED: ${state.toUpperCase()}` : "✗ LED Control Failed",
+          data.success
+        );
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+        showStatus("✗ Connection Error", false);
+      });
+  }
+
+  function controlBuzzer(state) {
+    fetch("/api/control/buzzer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ state: state }),
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        showStatus(
+          data.success ? `✓ Buzzer: ${state.toUpperCase()}` : "✗ Buzzer Control Failed",
+          data.success
+        );
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+        showStatus("✗ Connection Error", false);
+      });
+  }
+</script>
+{% endblock %}

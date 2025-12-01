@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Line Tracking - SwiftRover{% endblock %}
+{% block content %}
+<div class="container">
+  <h1 class="page-title">📍 Line Tracking</h1>
+
+  <div class="card">
+    <div class="card-header">
+      <h2>🚗 Autonomous Line Following</h2>
+    </div>
+    <div class="card-body">
+      <p style="color: var(--text-secondary); margin-bottom: 2rem; font-size: 1.05rem;">
+        The robot automatically follows a black line using infrared sensors for detection and path correction.
+      </p>
+
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+        <button class="btn btn-success" style="padding: 1rem 2rem; font-size: 1rem;" id="start-btn" onclick="startLineTracking()">
+          ▶️ START TRACKING
+        </button>
+        <button class="btn btn-danger" style="padding: 1rem 2rem; font-size: 1rem;" id="stop-btn" onclick="stopLineTracking()" disabled>
+          ⏹️ STOP TRACKING
+        </button>
+      </div>
+
+      <div class="status-message" id="status-message" style="margin-top: 2rem;"></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 2rem;">
+    <div class="card-header">
+      <h2>📊 Line Sensor Status</h2>
+    </div>
+    <div class="card-body">
+      <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 2rem;">
+        <div style="text-align: center; padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px;">
+          <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">Left IR</div>
+          <div id="ir-left-status" style="font-size: 1.5rem; color: var(--accent-blue);">--</div>
+        </div>
+        <div style="text-align: center; padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px;">
+          <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">Center IR</div>
+          <div id="ir-center-status" style="font-size: 1.5rem; color: var(--accent-blue);">--</div>
+        </div>
+        <div style="text-align: center; padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px;">
+          <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">Right IR</div>
+          <div id="ir-right-status" style="font-size: 1.5rem; color: var(--accent-blue);">--</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top: 2rem;">
+    <div class="card-header">
+      <h2>ℹ️ Information</h2>
+    </div>
+    <div class="card-body">
+      <ul style="list-style: none; padding: 0;">
+        <li style="margin-bottom: 1rem; color: var(--text-secondary);">
+          <span style="color: var(--accent-blue); font-weight: 600;">•</span> Place robot on black line to start tracking
+        </li>
+        <li style="margin-bottom: 1rem; color: var(--text-secondary);">
+          <span style="color: var(--accent-blue); font-weight: 600;">•</span> Robot will automatically correct path using IR sensors
+        </li>
+        <li style="margin-bottom: 1rem; color: var(--text-secondary);">
+          <span style="color: var(--accent-blue); font-weight: 600;">•</span> Speed adjusts based on line position
+        </li>
+        <li style="color: var(--text-secondary);">
+          <span style="color: var(--accent-blue); font-weight: 600;">•</span> Press STOP to end autonomous operation
+        </li>
+      </ul>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  async function startLineTracking() {
+    try {
+      const response = await fetch('/api/line-tracking/start', { method: 'POST' });
+      const data = await response.json();
+      if (data.success) {
+        document.getElementById('start-btn').disabled = true;
+        document.getElementById('stop-btn').disabled = false;
+        showNotification('✓ Line tracking started', 'success');
+      } else {
+        showNotification('✗ Failed to start line tracking', 'error');
+      }
+    } catch (error) {
+      showNotification('✗ Connection error', 'error');
+    }
+  }
+
+  async function stopLineTracking() {
+    try {
+      const response = await fetch('/api/line-tracking/stop', { method: 'POST' });
+      const data = await response.json();
+      if (data.success) {
+        document.getElementById('start-btn').disabled = false;
+        document.getElementById('stop-btn').disabled = true;
+        showNotification('✓ Line tracking stopped', 'success');
+      } else {
+        showNotification('✗ Failed to stop line tracking', 'error');
+      }
+    } catch (error) {
+      showNotification('✗ Connection error', 'error');
+    }
+  }
+
+  // Update sensor status
+  async function updateSensorStatus() {
+    try {
+      const response = await fetch('/api/live-data');
+      const data = await response.json();
+      document.getElementById('ir-left-status').textContent = data.ir_left || '--';
+      document.getElementById('ir-center-status').textContent = data.ir_center || '--';
+      document.getElementById('ir-right-status').textContent = data.ir_right || '--';
+    } catch (error) {
+      console.error('Error updating sensor status:', error);
+    }
+  }
+
+  updateSensorStatus();
+  setInterval(updateSensorStatus, 1000);
+</script>
+{% endblock %}

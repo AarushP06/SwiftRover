@@ -8,7 +8,7 @@ class ParameterManager:
     # Define the default parameter file name - check config/ first, then current directory
     _CONFIG_DIR = Path(__file__).parent.parent / "config"
     PARAM_FILE = 'params.json'
-    
+
     def _find_param_file(self, file_path: str = None) -> str:
         """Find params.json in config/ directory first, then fallback to current directory."""
         if file_path:
@@ -167,3 +167,4 @@ if __name__ == '__main__':
         print(f"PCB Version: {pcb_version}.0")
         pi_version = manager.get_pi_version()
         print(f"Raspberry PI version is {'less than 5' if pi_version == 1 else '5'}.")
+

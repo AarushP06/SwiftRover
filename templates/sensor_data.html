@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+{% block title %}Sensors - SwiftRover{% endblock %}
+{% block content %}
+<div class="container">
+  <h1 class="page-title">📊 Sensor Analytics</h1>
+
+  <div class="card">
+    <div class="card-header">
+      <h2>📅 Data Query</h2>
+    </div>
+    <div class="card-body">
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; align-items: end;">
+        <div>
+          <label style="display: block; color: var(--text-primary); font-weight: 600; margin-bottom: 0.5rem;">Select Date</label>
+          <input type="date" id="date-input" style="padding: 0.7rem; background: rgba(10, 125, 217, 0.1); border: 1px solid var(--glass-border); border-radius: 8px; color: var(--text-primary); width: 100%; font-family: 'Inter', sans-serif;" />
+        </div>
+        <div>
+          <button class="btn btn-primary" onclick="loadHistoricalData()" style="width: 100%;">
+            📈 Load Data
+          </button>
+        </div>
+        <div>
+          <button class="btn btn-secondary" onclick="loadAllData()" style="width: 100%; background: linear-gradient(135deg, #1565c0 0%, #0d47a1 100%); border: 1px solid #0d47a1;">
+            ⬇️ Load All
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 2rem; margin-top: 2rem;">
+    <div class="card">
+      <div class="card-header">
+        <h3>📏 Distance Measurements</h3>
+      </div>
+      <div class="card-body">
+        <canvas id="ultrasonic-chart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>📍 Line Sensor Pattern</h3>
+      </div>
+      <div class="card-body">
+        <canvas id="line-state-chart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>◀ Left IR Sensor</h3>
+      </div>
+      <div class="card-body">
+        <canvas id="ir-left-chart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>● Center IR Sensor</h3>
+      </div>
+      <div class="card-body">
+        <canvas id="ir-center-chart"></canvas>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        <h3>▶ Right IR Sensor</h3>
+      </div>
+      <div class="card-body">
+        <canvas id="ir-right-chart"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  let charts = {};
+
+  function initCharts() {
+    const chartConfigs = [
+      { id: 'ultrasonic-chart', label: 'Distance (cm)', key: 'ultrasonic_cm' },
+      { id: 'ir-left-chart', label: 'Left Sensor', key: 'ir_left' },
+      { id: 'ir-center-chart', label: 'Center Sensor', key: 'ir_center' },
+      { id: 'ir-right-chart', label: 'Right Sensor', key: 'ir_right' },
+      { id: 'line-state-chart', label: 'Line State', key: 'line_state' },
+    ];
+
+    chartConfigs.forEach(config => {
+      const ctx = document.getElementById(config.id);
+      if (ctx) {
+        charts[config.id] = createChart(ctx, 'line', {
+          labels: [],
+          datasets: [
+            {
+              label: config.label,
+              data: [],
+              borderColor: CHART_COLORS.primary,
+              backgroundColor: CHART_COLORS.grid,
+              borderWidth: 2,
+              fill: true,
+              tension: 0.4,
+              pointBackgroundColor: CHART_COLORS.primary,
+              pointBorderColor: CHART_COLORS.text,
+              pointRadius: 4,
+              pointHoverRadius: 6,
+            }
+          ]
+        });
+      }
+    });
+  }
+
+  async function loadHistoricalData() {
+    const date = document.getElementById('date-input').value;
+    if (!date) {
+      showNotification('✗ Please select a date', 'error');
+      return;
+    }
+
+    try {
+      const response = await fetch('/api/historical-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: date })
+      });
+      const data = await response.json();
+      updateCharts(data.data || []);
+      showNotification('✓ Data loaded successfully', 'success');
+    } catch (error) {
+      showNotification('✗ Failed to load data', 'error');
+    }
+  }
+
+  async function loadAllData() {
+    try {
+      const response = await fetch('/api/historical-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: null })
+      });
+      const data = await response.json();
+      updateCharts(data.data || []);
+      showNotification('✓ All data loaded successfully', 'success');
+    } catch (error) {
+      showNotification('✗ Failed to load data', 'error');
+    }
+  }
+
+  function updateCharts(data) {
+    const timestamps = data.map(d => new Date(d.timestamp).toLocaleTimeString());
+
+    Object.keys(charts).forEach(chartId => {
+      let key = chartId.replace('-chart', '');
+      if (key === 'ultrasonic') key = 'ultrasonic_cm';
+      if (key === 'ir-left') key = 'ir_left';
+      if (key === 'ir-center') key = 'ir_center';
+      if (key === 'ir-right') key = 'ir_right';
+      if (key === 'line-state') key = 'line_state';
+
+      const values = data.map(d => d[key] || 0);
+
+      charts[chartId].data.labels = timestamps;
+      charts[chartId].data.datasets[0].data = values;
+      charts[chartId].update();
+    });
+  }
+
+  document.addEventListener('DOMContentLoaded', initCharts);
+</script>
+{% endblock %}

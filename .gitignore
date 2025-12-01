@@ -9,3 +9,6 @@ captured_images/
 *.png
 .idea/
 .vscode/
+config/adafruit.json
+config/neon.json
+config/app.json

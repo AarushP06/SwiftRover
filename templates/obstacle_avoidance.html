@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}Obstacle Avoidance - SwiftRover{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h1 class="page-title">🚧 Obstacle Avoidance</h1>
+
+    <div class="card">
+        <div class="card-header">
+            <h2>🤖 Autonomous Obstacle Navigation</h2>
+        </div>
+        <div class="card-body">
+            <p style="color: var(--text-secondary); margin-bottom: 2rem; font-size: 1.05rem;">
+                The robot autonomously detects obstacles using an ultrasonic sensor and navigates around them intelligently.
+            </p>
+
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                <button class="btn btn-success" style="padding: 1rem 2rem; font-size: 1rem;" id="start-btn" onclick="startObstacleAvoidance()">
+                    ▶️ START NAVIGATOR
+                </button>
+                <button class="btn btn-danger" style="padding: 1rem 2rem; font-size: 1rem;" id="stop-btn" onclick="stopObstacleAvoidance()" disabled>
+                    ⏹️ STOP NAVIGATOR
+                </button>
+            </div>
+
+            <div class="status-message" id="status-message" style="margin-top: 2rem;"></div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 2rem;">
+        <div class="card-header">
+            <h2>📏 Ultrasonic Sensor</h2>
+        </div>
+        <div class="card-body">
+            <div style="text-align: center; padding: 2rem;">
+                <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 1rem; font-size: 1rem;">Distance to Obstacle</div>
+                <div id="distance-display" style="font-size: 3rem; color: var(--accent-blue); font-weight: 700; text-shadow: 0 0 20px rgba(66, 165, 245, 0.4);">-- cm</div>
+                <div style="color: var(--text-muted); margin-top: 1rem; font-size: 0.9rem;">Real-time distance measurement</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 2rem;">
+        <div class="card-header">
+            <h2>ℹ️ How It Works</h2>
+        </div>
+        <div class="card-body">
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 2rem;">
+                <div style="padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px; border-left: 3px solid var(--accent-blue);">
+                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">🔍 Detection</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Continuously scans for nearby obstacles using ultrasonic sensor</div>
+                </div>
+                <div style="padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px; border-left: 3px solid var(--accent-blue);">
+                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">🔄 Analysis</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Calculates distance and determines if obstacle is too close</div>
+                </div>
+                <div style="padding: 1.5rem; background: rgba(10, 125, 217, 0.05); border-radius: 12px; border-left: 3px solid var(--accent-blue);">
+                    <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem;">🚗 Navigation</div>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem;">Turns and moves around obstacles to reach destination</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card" style="margin-top: 2rem;">
+        <div class="card-header">
+            <h2>📋 Operating Guidelines</h2>
+        </div>
+        <div class="card-body">
+            <ul style="list-style: none; padding: 0;">
+                <li style="margin-bottom: 1rem; color: var(--text-secondary);">
+                    <span style="color: var(--accent-blue); font-weight: 600;">•</span> Place robot in clear open space for best operation
+                </li>
+                <li style="margin-bottom: 1rem; color: var(--text-secondary);">
+                    <span style="color: var(--accent-blue); font-weight: 600;">•</span> Ultrasonic sensor should have clear view of environment
+                </li>
+                <li style="margin-bottom: 1rem; color: var(--text-secondary);">
+                    <span style="color: var(--accent-blue); font-weight: 600;">•</span> Distance threshold: obstacles detected within 30cm
+                </li>
+                <li style="color: var(--text-secondary);">
+                    <span style="color: var(--accent-blue); font-weight: 600;">•</span> Press STOP to manually halt autonomous operation
+                </li>
+            </ul>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    async function startObstacleAvoidance() {
+        try {
+            const response = await fetch('/api/obstacle-avoidance/start', { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('start-btn').disabled = true;
+                document.getElementById('stop-btn').disabled = false;
+                showNotification('✓ Obstacle avoidance started', 'success');
+            } else {
+                showNotification('✗ Failed to start obstacle avoidance', 'error');
+            }
+        } catch (error) {
+            showNotification('✗ Connection error', 'error');
+        }
+    }
+
+    async function stopObstacleAvoidance() {
+        try {
+            const response = await fetch('/api/obstacle-avoidance/stop', { method: 'POST' });
+            const data = await response.json();
+            if (data.success) {
+                document.getElementById('start-btn').disabled = false;
+                document.getElementById('stop-btn').disabled = true;
+                showNotification('✓ Obstacle avoidance stopped', 'success');
+            } else {
+                showNotification('✗ Failed to stop obstacle avoidance', 'error');
+            }
+        } catch (error) {
+            showNotification('✗ Connection error', 'error');
+        }
+    }
+
+    // Update distance
+    async function updateDistance() {
+        try {
+            const response = await fetch('/api/live-data');
+            const data = await response.json();
+            document.getElementById('distance-display').textContent = (data.ultrasonic_cm || '--') + ' cm';
+        } catch (error) {
+            console.error('Error updating distance:', error);
+        }
+    }
+
+    updateDistance();
+    setInterval(updateDistance, 500);
+</script>
+{% endblock %}
