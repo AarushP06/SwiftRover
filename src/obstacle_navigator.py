@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import time, argparse, sys
+import time, argparse, sys, signal, os
 from pathlib import Path
 from typing import Optional
 
@@ -329,6 +329,37 @@ def main():
         reverse_time=args.reverse_time, pivot_min_dur=args.pivot_min_dur, post_roll_time=args.post_roll
     )
 
+    # PID file for process management
+    PID_FILE = Path("/tmp/obstacle_navigator.pid")
+    
+    # Signal handler to stop motors when killed
+    def signal_handler(signum, frame):
+        print(f"\n[NAV] Received signal {signum}, stopping motors...")
+        nav.stop()
+        try:
+            pan.angle(args.pan_center)
+            tilt.angle(args.tilt_center)
+        except Exception:
+            pass
+        try:
+            if PID_FILE.exists():
+                PID_FILE.unlink()
+        except Exception:
+            pass
+        print("[NAV] Stopped.")
+        sys.exit(0)
+    
+    # Register signal handlers
+    signal.signal(signal.SIGTERM, signal_handler)
+    signal.signal(signal.SIGINT, signal_handler)
+    
+    # Write PID file
+    try:
+        PID_FILE.write_text(str(os.getpid()))
+        print(f"[NAV] PID file written: {PID_FILE} (PID: {os.getpid()})")
+    except Exception as e:
+        print(f"[NAV] Warning: Could not write PID file: {e}")
+
     print("Head-scan navigator ready. Ctrl+C to stop.")
     
     # Write initial distance reading to cache for telemetry
@@ -350,6 +381,11 @@ def main():
         nav.stop()
         try:
             pan.angle(args.pan_center); tilt.angle(args.tilt_center)
+        except Exception:
+            pass
+        try:
+            if PID_FILE.exists():
+                PID_FILE.unlink()
         except Exception:
             pass
         print("\nStopped.")

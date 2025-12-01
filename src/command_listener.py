@@ -94,6 +94,7 @@ def on_message(client, userdata, msg):
 
         # Handle obstacle avoidance
         elif feed_name == CONTROL_FEEDS["obstacle_avoidance"]:
+            print(f"[MQTT] Received obstacle_avoidance command: '{value}'")
             handle_obstacle_avoidance(value)
 
     except Exception as e:
@@ -598,63 +599,81 @@ def handle_obstacle_avoidance(command):
             if PID_FILE.exists():
                 PID_FILE.unlink()
     elif command == "stop":
+        print(f"[OBSTACLE_STOP] ===== STOP COMMAND RECEIVED =====")
+        
         # CRITICAL: Stop motors IMMEDIATELY first
         try:
             car = get_car()
             if car:
                 car.set_motor_model(0, 0, 0, 0)
-                print("[DEBUG] Motors stopped immediately")
+                print("[OBSTACLE_STOP] ✅ Motors stopped immediately")
+            else:
+                print("[OBSTACLE_STOP] ⚠️  Car instance not available")
         except Exception as e:
-            print(f"[DEBUG] Error stopping motors: {e}")
+            print(f"[OBSTACLE_STOP] ❌ Error stopping motors: {e}")
 
         stopped = False
 
         # Always try pkill first (most reliable and aggressive method)
         try:
-            print("[DEBUG] Using pkill -9 to forcefully kill obstacle_navigator.py processes...")
+            print("[OBSTACLE_STOP] Using pkill -9 to forcefully kill obstacle_navigator.py processes...")
             result = subprocess.run(
                 ["pkill", "-9", "-f", "obstacle_navigator.py"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=2
             )
+            print(f"[OBSTACLE_STOP] pkill return code: {result.returncode}")
+            if result.stdout:
+                print(f"[OBSTACLE_STOP] pkill stdout: {result.stdout.decode()}")
+            if result.stderr:
+                print(f"[OBSTACLE_STOP] pkill stderr: {result.stderr.decode()}")
             if result.returncode == 0:
                 stopped = True
-                print("[DEBUG] pkill -9 killed obstacle_navigator.py processes")
+                print("[OBSTACLE_STOP] ✅ pkill -9 killed obstacle_navigator.py processes")
+            elif result.returncode == 1:
+                print("[OBSTACLE_STOP] ℹ️  pkill found no matching processes (may already be stopped)")
         except subprocess.TimeoutExpired:
-            print("[DEBUG] pkill timed out")
+            print("[OBSTACLE_STOP] ⚠️  pkill timed out")
         except Exception as e:
-            print(f"[DEBUG] Error using pkill: {e}")
+            print(f"[OBSTACLE_STOP] ❌ Error using pkill: {e}")
 
         # Also try PID file method
         if PID_FILE.exists():
             try:
                 pid = int(PID_FILE.read_text().strip())
-                print(f"[DEBUG] Found PID file with PID: {pid}")
+                print(f"[OBSTACLE_STOP] Found PID file with PID: {pid}")
                 try:
                     os.kill(pid, 0)  # Check if process exists
-                    print(f"[DEBUG] Process {pid} exists, attempting to kill...")
+                    print(f"[OBSTACLE_STOP] Process {pid} exists, attempting to kill...")
                     try:
                         pgid = os.getpgid(pid)
+                        print(f"[OBSTACLE_STOP] Killing process group {pgid}")
                         os.killpg(pgid, signal.SIGKILL)
                         time.sleep(0.2)
                         stopped = True
-                    except (OSError, ProcessLookupError):
+                        print(f"[OBSTACLE_STOP] ✅ Killed process group {pgid}")
+                    except (OSError, ProcessLookupError) as e:
+                        print(f"[OBSTACLE_STOP] Could not kill process group: {e}")
                         try:
                             os.kill(pid, signal.SIGKILL)
                             stopped = True
-                        except (OSError, ProcessLookupError):
-                            pass
+                            print(f"[OBSTACLE_STOP] ✅ Killed process {pid} directly")
+                        except (OSError, ProcessLookupError) as e2:
+                            print(f"[OBSTACLE_STOP] Could not kill process {pid}: {e2}")
                 except (OSError, ProcessLookupError):
-                    print(f"[DEBUG] Process {pid} does not exist")
+                    print(f"[OBSTACLE_STOP] Process {pid} does not exist (stale PID file)")
             except (ValueError, OSError) as e:
-                print(f"[DEBUG] Error reading PID file: {e}")
+                print(f"[OBSTACLE_STOP] Error reading PID file: {e}")
             finally:
                 # Always remove PID file
                 try:
                     PID_FILE.unlink()
-                except:
-                    pass
+                    print(f"[OBSTACLE_STOP] Removed PID file")
+                except Exception as e:
+                    print(f"[OBSTACLE_STOP] Could not remove PID file: {e}")
+        else:
+            print("[OBSTACLE_STOP] No PID file found")
 
         # Verify it's actually stopped
         try:
@@ -668,18 +687,33 @@ def handle_obstacle_avoidance(command):
                 remaining_pids = check_result.stdout.decode().strip().split('\n')
                 remaining_pids = [p for p in remaining_pids if p]
                 if remaining_pids:
-                    print(f"[DEBUG] Warning: Still found processes: {remaining_pids}")
+                    print(f"[OBSTACLE_STOP] ⚠️  Warning: Still found processes: {remaining_pids}")
                     for pid_str in remaining_pids:
                         try:
                             pid = int(pid_str)
                             os.kill(pid, signal.SIGKILL)
-                            print(f"[DEBUG] Force killed remaining process {pid}")
-                        except:
-                            pass
+                            print(f"[OBSTACLE_STOP] ✅ Force killed remaining process {pid}")
+                        except Exception as e:
+                            print(f"[OBSTACLE_STOP] Could not kill process {pid_str}: {e}")
+                else:
+                    stopped = True
+            else:
+                stopped = True
+                print("[OBSTACLE_STOP] ✅ Verified: No obstacle_navigator.py processes running")
         except Exception as e:
-            print(f"[DEBUG] Error verifying stop: {e}")
+            print(f"[OBSTACLE_STOP] Error verifying stop: {e}")
+
+        # Stop motors again to be absolutely sure
+        try:
+            car = get_car()
+            if car:
+                car.set_motor_model(0, 0, 0, 0)
+                print("[OBSTACLE_STOP] ✅ Motors stopped again (final check)")
+        except Exception as e:
+            print(f"[OBSTACLE_STOP] Error in final motor stop: {e}")
 
         # Always report success - motors are guaranteed to be stopped
+        print("[OBSTACLE_STOP] ===== STOP COMPLETE =====")
         print("✅ Obstacle avoidance stopped")
 
 def main():
