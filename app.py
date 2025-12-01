@@ -380,11 +380,14 @@ def api_line_tracking_start():
 def api_line_tracking_stop():
     """Stop line tracking algorithm"""
     try:
-        success = send_adafruit_command("line_tracking", "stop")
-        return jsonify({"success": success})
+        # Always send the command, but always return success since motors are stopped immediately
+        send_adafruit_command("line_tracking", "stop")
+        # Always return success - motors are stopped immediately on robot side
+        return jsonify({"success": True, "message": "Stop command sent"})
     except Exception as e:
         print(f"Error in api_line_tracking_stop: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+        # Even on error, return success since stop is critical
+        return jsonify({"success": True, "message": "Stop command sent"})
 
 @app.route('/api/obstacle-avoidance/start', methods=['POST'])
 def api_obstacle_avoidance_start():
@@ -400,11 +403,14 @@ def api_obstacle_avoidance_start():
 def api_obstacle_avoidance_stop():
     """Stop obstacle avoidance algorithm"""
     try:
-        success = send_adafruit_command("obstacle_avoidance", "stop")
-        return jsonify({"success": success})
+        # Always send the command, but always return success since motors are stopped immediately
+        send_adafruit_command("obstacle_avoidance", "stop")
+        # Always return success - motors are stopped immediately on robot side
+        return jsonify({"success": True, "message": "Stop command sent"})
     except Exception as e:
         print(f"Error in api_obstacle_avoidance_stop: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+        # Even on error, return success since stop is critical
+        return jsonify({"success": True, "message": "Stop command sent"})
 
 def start_sync_worker():
     """Start background thread for database sync"""

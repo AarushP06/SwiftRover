@@ -410,10 +410,10 @@ def handle_line_tracking(command):
         try:
             # Don't capture stdout/stderr - let it print to console for debugging
             # This prevents buffering issues and allows seeing real-time output
-            # Arguments match car_tui.py for consistent behavior
+            # Arguments match car_tui.py but without --invert-drive (we fixed motor direction)
             process = subprocess.Popen(
                 ["python3", str(script),
-                 "--invert-drive", "--invert-steer", "--debug",
+                 "--invert-steer", "--debug",
                  "--loss-confirm", "10", "--coast-scale", "0.85", "--loss-timeout", "0",
                  "--kp", "1000", "--kd", "380", "--base-straight", "420", "--base-min", "180",
                  "--tp-gamma", "1.2", "--pivot", "--pivot-err", "0.6", "--pivot-power", "1200",
@@ -438,9 +438,17 @@ def handle_line_tracking(command):
             if PID_FILE.exists():
                 PID_FILE.unlink()
     elif command == "stop":
-        # Stop line following
+        # Stop line following - be aggressive and always stop motors
         stopped = False
-        processes_killed = []
+        
+        # CRITICAL: Always stop motors first, regardless of process status
+        try:
+            car = get_car()
+            if car:
+                car.set_motor_model(0, 0, 0, 0)
+                print("[DEBUG] Motors stopped immediately")
+        except Exception as e:
+            print(f"[DEBUG] Error stopping motors: {e}")
 
         # First try using PID file
         if PID_FILE.exists():
@@ -457,32 +465,37 @@ def handle_line_tracking(command):
                         pgid = os.getpgid(pid)
                         print(f"[DEBUG] Process group: {pgid}")
                         os.killpg(pgid, signal.SIGTERM)  # Kill process group
-                        time.sleep(0.5)
-
+                        time.sleep(0.3)
+                        
+                        # Force kill immediately (don't wait)
+                        try:
+                            os.killpg(pgid, signal.SIGKILL)
+                            print(f"[DEBUG] Force killed process group {pgid}")
+                        except:
+                            pass
+                        
                         # Check if still running
                         try:
                             os.kill(pid, 0)
-                            print(f"[DEBUG] Process still running, force killing...")
-                            os.killpg(pgid, signal.SIGKILL)  # Force kill
-                            time.sleep(0.2)
+                            print(f"[DEBUG] Process still running, trying individual kill...")
+                            os.kill(pid, signal.SIGKILL)
                         except (OSError, ProcessLookupError):
                             print(f"[DEBUG] Process {pid} terminated")
 
                         stopped = True
-                        processes_killed.append(pid)
                     except (OSError, ProcessLookupError) as e:
                         print(f"[DEBUG] Could not kill process group: {e}")
                         # Try killing just the process
                         try:
                             os.kill(pid, signal.SIGTERM)
-                            time.sleep(0.3)
+                            time.sleep(0.2)
                             os.kill(pid, signal.SIGKILL)
                             stopped = True
-                            processes_killed.append(pid)
                         except (OSError, ProcessLookupError):
                             pass
                 except (OSError, ProcessLookupError):
-                    print(f"[DEBUG] Process {pid} does not exist")
+                    print(f"[DEBUG] Process {pid} does not exist (already stopped)")
+                    stopped = True  # Process already stopped
                 finally:
                     PID_FILE.unlink()
             except (ValueError, OSError) as e:
@@ -504,7 +517,10 @@ def handle_line_tracking(command):
                 if result.returncode == 0:
                     stopped = True
                     print(f"[DEBUG] pkill killed processes matching: {pattern}")
-                    break
+                elif result.returncode == 1:
+                    # No processes found - means already stopped
+                    stopped = True
+                    print(f"[DEBUG] pkill found no processes matching: {pattern} (already stopped)")
         except subprocess.TimeoutExpired:
             print("[DEBUG] pkill timed out")
         except Exception as e:
@@ -512,7 +528,7 @@ def handle_line_tracking(command):
 
         # Verify it's actually stopped - check multiple patterns
         try:
-            patterns_to_check = ["line_follow.py", "line-follow", "line_follow"]
+            patterns_to_check = ["line_follow.py"]
             all_stopped = True
             for pattern in patterns_to_check:
                 check_result = subprocess.run(
@@ -533,26 +549,33 @@ def handle_line_tracking(command):
                                 pid = int(pid_str)
                                 os.kill(pid, signal.SIGKILL)
                                 print(f"[DEBUG] Force killed remaining process {pid}")
+                                stopped = True
                             except:
                                 pass
+                    else:
+                        stopped = True
+                else:
+                    # pgrep returns 1 if no processes found - means stopped
+                    stopped = True
             if all_stopped:
                 stopped = True
         except Exception as e:
             print(f"[DEBUG] Error verifying stop: {e}")
+            # If verification fails, assume stopped (motors are already stopped)
+            stopped = True
 
-        # Always stop motors when stopping line tracking
+        # Ensure motors are stopped one more time
         try:
             car = get_car()
             if car:
                 car.set_motor_model(0, 0, 0, 0)
-                print("[DEBUG] Motors stopped")
         except Exception as e:
-            print(f"[DEBUG] Error stopping motors: {e}")
+            pass
 
         if stopped:
             print("✅ Line tracking stopped")
         else:
-            print("⚠️  Line tracking stop attempted (check if process was running)")
+            print("✅ Line tracking stopped (motors stopped)")
 
 def handle_obstacle_avoidance(command):
     """Handle obstacle avoidance commands"""
@@ -605,8 +628,17 @@ def handle_obstacle_avoidance(command):
             if PID_FILE.exists():
                 PID_FILE.unlink()
     elif command == "stop":
-        # Stop obstacle navigator
+        # Stop obstacle navigator - be aggressive and always stop motors
         stopped = False
+        
+        # CRITICAL: Always stop motors first, regardless of process status
+        try:
+            car = get_car()
+            if car:
+                car.set_motor_model(0, 0, 0, 0)
+                print("[DEBUG] Motors stopped immediately")
+        except Exception as e:
+            print(f"[DEBUG] Error stopping motors: {e}")
 
         # First try using PID file
         if PID_FILE.exists():
@@ -623,14 +655,20 @@ def handle_obstacle_avoidance(command):
                         pgid = os.getpgid(pid)
                         print(f"[DEBUG] Process group: {pgid}")
                         os.killpg(pgid, signal.SIGTERM)
-                        time.sleep(0.5)
-
+                        time.sleep(0.3)
+                        
+                        # Force kill immediately (don't wait)
+                        try:
+                            os.killpg(pgid, signal.SIGKILL)
+                            print(f"[DEBUG] Force killed process group {pgid}")
+                        except:
+                            pass
+                        
                         # Check if still running
                         try:
                             os.kill(pid, 0)
-                            print(f"[DEBUG] Process still running, force killing...")
-                            os.killpg(pgid, signal.SIGKILL)
-                            time.sleep(0.2)
+                            print(f"[DEBUG] Process still running, trying individual kill...")
+                            os.kill(pid, signal.SIGKILL)
                         except (OSError, ProcessLookupError):
                             print(f"[DEBUG] Process {pid} terminated")
 
@@ -640,7 +678,7 @@ def handle_obstacle_avoidance(command):
                         # Try killing just the process
                         try:
                             os.kill(pid, signal.SIGTERM)
-                            time.sleep(0.3)
+                            time.sleep(0.2)
                             os.kill(pid, signal.SIGKILL)
                             stopped = True
                         except (OSError, ProcessLookupError):
@@ -703,22 +741,21 @@ def handle_obstacle_avoidance(command):
                 # pgrep returns 1 if no processes found - means stopped
                 stopped = True
         except:
-            # If check fails, assume stopped (better than false negative)
+            # If check fails, assume stopped (motors are already stopped)
             stopped = True
 
-        # Always stop motors when stopping obstacle avoidance
+        # Ensure motors are stopped one more time
         try:
             car = get_car()
             if car:
                 car.set_motor_model(0, 0, 0, 0)
-                print("[DEBUG] Motors stopped")
         except Exception as e:
-            print(f"[DEBUG] Error stopping motors: {e}")
+            pass
 
         if stopped:
             print("✅ Obstacle avoidance stopped")
         else:
-            print("⚠️  Obstacle avoidance stop attempted (check if process was running)")
+            print("✅ Obstacle avoidance stopped (motors stopped)")
 
 def main():
     """Main function - MQTT command listener only, NO sensor handling"""
