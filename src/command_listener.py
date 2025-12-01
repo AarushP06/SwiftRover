@@ -310,7 +310,7 @@ def handle_motor_control(action):
 
         speed = 800
         turn_power = 1200
-        drive_sign = -1  # Match car_tui.py behavior
+        drive_sign = 1  # Fixed: motor.py already handles inversion, so we don't need to invert here
 
         if action == "forward":
             car.set_motor_model(int(speed)*drive_sign, int(speed)*drive_sign, int(speed)*drive_sign, int(speed)*drive_sign)
@@ -638,7 +638,8 @@ def handle_obstacle_avoidance(command):
                         except (OSError, ProcessLookupError):
                             pass
                 except (OSError, ProcessLookupError):
-                    print(f"[DEBUG] Process {pid} does not exist")
+                    print(f"[DEBUG] Process {pid} does not exist (already stopped)")
+                    stopped = True  # Process already stopped
                 finally:
                     PID_FILE.unlink()
             except (ValueError, OSError) as e:
@@ -649,7 +650,7 @@ def handle_obstacle_avoidance(command):
         try:
             print("[DEBUG] Using pkill to find and kill obstacle_navigator.py processes...")
             result = subprocess.run(
-                ["pkill", "-f", "obstacle_navigator.py"],
+                ["pkill", "-9", "-f", "obstacle_navigator.py"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=2
@@ -658,7 +659,9 @@ def handle_obstacle_avoidance(command):
                 stopped = True
                 print("[DEBUG] pkill found and killed obstacle_navigator.py processes")
             elif result.returncode == 1:
-                print("[DEBUG] pkill found no matching processes")
+                # pkill returns 1 if no processes found - means already stopped
+                print("[DEBUG] pkill found no matching processes (already stopped)")
+                stopped = True
         except subprocess.TimeoutExpired:
             print("[DEBUG] pkill timed out")
         except Exception as e:
@@ -683,14 +686,17 @@ def handle_obstacle_avoidance(command):
                             pid = int(pid_str)
                             os.kill(pid, signal.SIGKILL)
                             print(f"[DEBUG] Force killed remaining process {pid}")
+                            stopped = True
                         except:
                             pass
                 else:
                     stopped = True
             else:
+                # pgrep returns 1 if no processes found - means stopped
                 stopped = True
         except:
-            pass
+            # If check fails, assume stopped (better than false negative)
+            stopped = True
 
         # Always stop motors when stopping obstacle avoidance
         try:
