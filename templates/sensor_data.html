@@ -129,9 +129,10 @@
         body: JSON.stringify({ date: date })
       });
       const data = await response.json();
-      updateCharts(data.data || []);
+      updateCharts(data);
       showNotification('✓ Data loaded successfully', 'success');
     } catch (error) {
+      console.error('Error loading historical data:', error);
       showNotification('✗ Failed to load data', 'error');
     }
   }
@@ -141,33 +142,64 @@
       const response = await fetch('/api/historical-data', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: null })
+        body: JSON.stringify({})
       });
       const data = await response.json();
-      updateCharts(data.data || []);
+      updateCharts(data);
       showNotification('✓ All data loaded successfully', 'success');
     } catch (error) {
+      console.error('Error loading data:', error);
       showNotification('✗ Failed to load data', 'error');
     }
   }
 
   function updateCharts(data) {
-    const timestamps = data.map(d => new Date(d.timestamp).toLocaleTimeString());
+    if (!data || !data.timestamps || data.timestamps.length === 0) {
+      console.warn('No data to display');
+      return;
+    }
 
-    Object.keys(charts).forEach(chartId => {
-      let key = chartId.replace('-chart', '');
-      if (key === 'ultrasonic') key = 'ultrasonic_cm';
-      if (key === 'ir-left') key = 'ir_left';
-      if (key === 'ir-center') key = 'ir_center';
-      if (key === 'ir-right') key = 'ir_right';
-      if (key === 'line-state') key = 'line_state';
-
-      const values = data.map(d => d[key] || 0);
-
-      charts[chartId].data.labels = timestamps;
-      charts[chartId].data.datasets[0].data = values;
-      charts[chartId].update();
+    const formattedTimestamps = data.timestamps.map((ts) => {
+      const d = new Date(ts);
+      return d.toLocaleTimeString("en-US", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     });
+
+    if (charts['ultrasonic-chart']) {
+      charts['ultrasonic-chart'].data.labels = formattedTimestamps;
+      charts['ultrasonic-chart'].data.datasets[0].data = data.ultrasonic || [];
+      charts['ultrasonic-chart'].update();
+    }
+
+    if (charts['ir-left-chart']) {
+      charts['ir-left-chart'].data.labels = formattedTimestamps;
+      charts['ir-left-chart'].data.datasets[0].data = data.ir_left || [];
+      charts['ir-left-chart'].update();
+    }
+
+    if (charts['ir-center-chart']) {
+      charts['ir-center-chart'].data.labels = formattedTimestamps;
+      charts['ir-center-chart'].data.datasets[0].data = data.ir_center || [];
+      charts['ir-center-chart'].update();
+    }
+
+    if (charts['ir-right-chart']) {
+      charts['ir-right-chart'].data.labels = formattedTimestamps;
+      charts['ir-right-chart'].data.datasets[0].data = data.ir_right || [];
+      charts['ir-right-chart'].update();
+    }
+
+    if (charts['line-state-chart']) {
+      const lineStateMap = {
+        '': 0, 'L': 1, 'M': 2, 'R': 3,
+        'LM': 4, 'MR': 5, 'LR': 6, 'LMR': 7
+      };
+      charts['line-state-chart'].data.labels = formattedTimestamps;
+      charts['line-state-chart'].data.datasets[0].data = (data.line_state || []).map(s => lineStateMap[s] || 0);
+      charts['line-state-chart'].update();
+    }
   }
 
   document.addEventListener('DOMContentLoaded', initCharts);
