@@ -4,6 +4,7 @@ Line Following Algorithm for IoT Smart Robot Car
 Reads IR sensors and follows black line on white surface
 Writes sensor data to cache for telemetry to read
 """
+
 import time, argparse, sys
 from pathlib import Path
 
