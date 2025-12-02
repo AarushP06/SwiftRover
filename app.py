@@ -166,7 +166,7 @@ def get_historical_data(date_str=None):
 # Cache for Adafruit IO data to reduce API calls (free tier has 30/min limit)
 _adafruit_cache = {}
 _adafruit_cache_time = {}
-ADAFRUIT_CACHE_TTL = 10  # Cache for 10 seconds (increased to reduce API calls)
+ADAFRUIT_CACHE_TTL = 5  # Cache for 5 seconds
 
 def get_adafruit_data(feed_key):
     """Get latest value from Adafruit IO feed via HTTP (with caching)"""
@@ -210,87 +210,51 @@ _last_command_time = {}
 RATE_LIMIT_SECONDS = 2  # Minimum seconds between commands to same feed
 
 def send_adafruit_command(feed_key, value):
-    """Send command to Adafruit IO feed with rate limiting protection.
-    
-    STOP commands are critical and bypass local rate limiting.
-    They also auto-retry up to 3 times if Adafruit IO rate limits.
-    """
+    """Send command to Adafruit IO feed with rate limiting protection"""
     global _last_command_time
     
-    # STOP commands are critical - bypass local rate limiting and retry on Adafruit rate limit
-    is_stop_command = (str(value).lower() == "stop")
-    max_retries = 3 if is_stop_command else 1
-    retry_delay = 2.5  # seconds between retries for stop commands
+    app.logger.info(f"[SEND_COMMAND] Attempting to send command: feed_key='{feed_key}', value='{value}'")
     
-    app.logger.info(f"[SEND_COMMAND] Attempting to send command: feed_key='{feed_key}', value='{value}' (is_stop={is_stop_command})")
-    
-    # Check local rate limit to prevent spam (SKIP for stop commands - they must go through)
+    # Check local rate limit to prevent spam
     now = time.time()
-    if not is_stop_command:
-        last_time = _last_command_time.get(feed_key, 0)
-        if now - last_time < RATE_LIMIT_SECONDS:
-            wait_time = RATE_LIMIT_SECONDS - (now - last_time)
-            app.logger.warning(f"[SEND_COMMAND] Local rate limit: wait {wait_time:.1f}s before sending to {feed_key}")
-            return "rate_limited"
-    else:
-        app.logger.info(f"[SEND_COMMAND] STOP command - bypassing local rate limit")
+    last_time = _last_command_time.get(feed_key, 0)
+    if now - last_time < RATE_LIMIT_SECONDS:
+        wait_time = RATE_LIMIT_SECONDS - (now - last_time)
+        app.logger.warning(f"[SEND_COMMAND] Local rate limit: wait {wait_time:.1f}s before sending to {feed_key}")
+        return "rate_limited"
     
     if not AIO_USERNAME or not AIO_KEY:
         app.logger.error(f"[SEND_COMMAND] ERROR: Missing credentials - AIO_USERNAME={bool(AIO_USERNAME)}, AIO_KEY={bool(AIO_KEY)}")
         return False
-    
-    feed_name = AIO_FEEDS.get(feed_key, "")
-    if not feed_name:
-        app.logger.error(f"[SEND_COMMAND] ERROR: Feed key '{feed_key}' not found in AIO_FEEDS. Available keys: {list(AIO_FEEDS.keys())}")
-        return False
-    
-    url = f"https://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/{feed_name}/data"
-    headers = {"X-AIO-Key": AIO_KEY, "Content-Type": "application/json"}
-    data = {"value": str(value)}
-    
-    # Retry loop for stop commands
-    for attempt in range(max_retries):
-        try:
-            if attempt > 0:
-                app.logger.info(f"[SEND_COMMAND] STOP retry attempt {attempt + 1}/{max_retries} after {retry_delay}s delay")
-            
-            app.logger.info(f"[SEND_COMMAND] POST to {url} with value='{value}'")
-            response = requests.post(url, headers=headers, json=data, timeout=5)
-            
-            # Handle rate limiting from Adafruit IO
-            if response.status_code == 429:
-                app.logger.error(f"[SEND_COMMAND] RATE LIMITED by Adafruit IO: {response.text}")
-                
-                # For stop commands, wait and retry
-                if is_stop_command and attempt < max_retries - 1:
-                    app.logger.info(f"[SEND_COMMAND] STOP command rate limited - waiting {retry_delay}s before retry...")
-                    time.sleep(retry_delay)
-                    continue
-                
-                return "rate_limited"
-            
-            # Accept both 200 (OK) and 201 (Created) as success
-            success = response.status_code in [200, 201]
-            if success:
-                _last_command_time[feed_key] = time.time()  # Update last command time
-                app.logger.info(f"[SEND_COMMAND] SUCCESS: Command sent successfully (status {response.status_code})")
-                if attempt > 0:
-                    app.logger.info(f"[SEND_COMMAND] STOP command succeeded on retry {attempt + 1}")
-                return True
-            else:
-                app.logger.error(f"[SEND_COMMAND] ERROR: Adafruit IO returned status {response.status_code}: {response.text}")
-                return False
-                
-        except Exception as e:
-            app.logger.exception(f"[SEND_COMMAND] EXCEPTION: Error sending Adafruit command: {e}")
-            # For stop commands, retry on exception too
-            if is_stop_command and attempt < max_retries - 1:
-                app.logger.info(f"[SEND_COMMAND] STOP command failed - waiting {retry_delay}s before retry...")
-                time.sleep(retry_delay)
-                continue
+    try:
+        feed_name = AIO_FEEDS.get(feed_key, "")
+        if not feed_name:
+            app.logger.error(f"[SEND_COMMAND] ERROR: Feed key '{feed_key}' not found in AIO_FEEDS. Available keys: {list(AIO_FEEDS.keys())}")
             return False
-    
-    return False
+        app.logger.info(f"[SEND_COMMAND] Using feed name: '{feed_name}' for key '{feed_key}'")
+        url = f"https://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/{feed_name}/data"
+        headers = {"X-AIO-Key": AIO_KEY, "Content-Type": "application/json"}
+        data = {"value": str(value)}
+        app.logger.info(f"[SEND_COMMAND] POST to {url} with value='{value}'")
+        response = requests.post(url, headers=headers, json=data, timeout=5)
+        
+        # Handle rate limiting from Adafruit IO
+        if response.status_code == 429:
+            app.logger.error(f"[SEND_COMMAND] RATE LIMITED by Adafruit IO: {response.text}")
+            return "rate_limited"
+        
+        # Accept both 200 (OK) and 201 (Created) as success
+        success = response.status_code in [200, 201]
+        if success:
+            _last_command_time[feed_key] = now  # Update last command time
+            app.logger.info(f"[SEND_COMMAND] SUCCESS: Command sent successfully (status {response.status_code})")
+            app.logger.debug(f"[SEND_COMMAND] Response body: {response.text[:200]}")
+        else:
+            app.logger.error(f"[SEND_COMMAND] ERROR: Adafruit IO returned status {response.status_code}: {response.text}")
+        return success
+    except Exception as e:
+        app.logger.exception(f"[SEND_COMMAND] EXCEPTION: Error sending Adafruit command: {e}")
+        return False
 
 # ============================================================================
 # Routes

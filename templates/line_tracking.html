@@ -185,49 +185,24 @@
   }
 
   async function stopLineTracking() {
-    const stopBtn = document.getElementById("stop-btn");
-    const startBtn = document.getElementById("start-btn");
-
-    // Disable button and show stopping message
-    stopBtn.disabled = true;
-    stopBtn.textContent = "⏳ STOPPING...";
-    showNotification(
-      "⏳ Sending stop command (may retry if rate limited)...",
-      "info"
-    );
-
     try {
       const response = await fetch("/api/line-tracking/stop", {
         method: "POST",
       });
       const data = await response.json();
-
       if (data.success) {
-        startBtn.disabled = false;
-        stopBtn.textContent = "⏹️ STOP TRACKING";
+        document.getElementById("start-btn").disabled = false;
+        document.getElementById("stop-btn").disabled = true;
         showNotification("✓ Line tracking stopped", "success");
-      } else if (data.rate_limited) {
-        // Server is retrying - keep button disabled, wait longer
-        showNotification("⏳ Rate limited - server is retrying...", "warning");
-        stopBtn.textContent = "⏳ RETRYING...";
-        // Re-enable after timeout since server handles retries
-        setTimeout(() => {
-          stopBtn.disabled = false;
-          stopBtn.textContent = "⏹️ STOP TRACKING";
-        }, 3000);
       } else {
-        stopBtn.disabled = false;
-        stopBtn.textContent = "⏹️ STOP TRACKING";
         showNotification("✗ Failed to stop line tracking", "error");
       }
     } catch (error) {
-      stopBtn.disabled = false;
-      stopBtn.textContent = "⏹️ STOP TRACKING";
       showNotification("✗ Connection error", "error");
     }
   }
 
-  // Update sensor status (reduced frequency to avoid rate limiting)
+  // Update sensor status
   async function updateSensorStatus() {
     try {
       const response = await fetch("/api/live-data");
@@ -244,6 +219,6 @@
   }
 
   updateSensorStatus();
-  setInterval(updateSensorStatus, 2000); // Reduced from 1000ms to 2000ms to avoid rate limiting
+  setInterval(updateSensorStatus, 1000);
 </script>
 {% endblock %}

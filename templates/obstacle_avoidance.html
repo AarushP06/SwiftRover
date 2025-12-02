@@ -216,49 +216,24 @@ endblock %} {% block content %}
   }
 
   async function stopObstacleAvoidance() {
-    const stopBtn = document.getElementById("stop-btn");
-    const startBtn = document.getElementById("start-btn");
-
-    // Disable button and show stopping message
-    stopBtn.disabled = true;
-    stopBtn.textContent = "⏳ STOPPING...";
-    showNotification(
-      "⏳ Sending stop command (may retry if rate limited)...",
-      "info"
-    );
-
     try {
       const response = await fetch("/api/obstacle-avoidance/stop", {
         method: "POST",
       });
       const data = await response.json();
-
       if (data.success) {
-        startBtn.disabled = false;
-        stopBtn.textContent = "⏹️ STOP NAVIGATOR";
+        document.getElementById("start-btn").disabled = false;
+        document.getElementById("stop-btn").disabled = true;
         showNotification("✓ Obstacle avoidance stopped", "success");
-      } else if (data.rate_limited) {
-        // Server is retrying - keep button disabled, wait longer
-        showNotification("⏳ Rate limited - server is retrying...", "warning");
-        stopBtn.textContent = "⏳ RETRYING...";
-        // Re-enable after timeout since server handles retries
-        setTimeout(() => {
-          stopBtn.disabled = false;
-          stopBtn.textContent = "⏹️ STOP NAVIGATOR";
-        }, 3000);
       } else {
-        stopBtn.disabled = false;
-        stopBtn.textContent = "⏹️ STOP NAVIGATOR";
         showNotification("✗ Failed to stop obstacle avoidance", "error");
       }
     } catch (error) {
-      stopBtn.disabled = false;
-      stopBtn.textContent = "⏹️ STOP NAVIGATOR";
       showNotification("✗ Connection error", "error");
     }
   }
 
-  // Update distance (reduced frequency to avoid rate limiting)
+  // Update distance
   async function updateDistance() {
     try {
       const response = await fetch("/api/live-data");
@@ -271,6 +246,6 @@ endblock %} {% block content %}
   }
 
   updateDistance();
-  setInterval(updateDistance, 2000); // Reduced from 500ms to 2000ms to avoid rate limiting
+  setInterval(updateDistance, 500);
 </script>
 {% endblock %}
