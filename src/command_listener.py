@@ -11,6 +11,7 @@ import time
 import signal
 import subprocess
 import threading
+import traceback
 import paho.mqtt.client as mqtt
 from pathlib import Path
 
@@ -105,7 +106,6 @@ def on_message(client, userdata, msg):
             print(f"[MQTT] WARNING: Received message for unknown feed: {feed_name} = {value}", flush=True)
 
     except Exception as e:
-        import traceback
         print(f"[MQTT] ERROR processing message: {e}", flush=True)
         traceback.print_exc()
 
@@ -407,9 +407,15 @@ def handle_line_tracking(command):
                     return
                 except OSError:
                     # Process doesn't exist, remove stale PID file
-                    PID_FILE.unlink()
+                    try:
+                        PID_FILE.unlink(missing_ok=True)
+                    except Exception:
+                        pass
             except (ValueError, OSError):
-                PID_FILE.unlink()
+                try:
+                    PID_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
 
         # IMPORTANT: Release IR sensors so line_follow.py can use them
         release_infrared()
@@ -434,13 +440,18 @@ def handle_line_tracking(command):
             if process.poll() is not None:
                 # Process died immediately - try to get error from stderr
                 print(f"❌ Line tracking failed to start (PID {process.pid} exited immediately)")
-                PID_FILE.unlink()
+                try:
+                    PID_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
             else:
                 print(f"✅ Line tracking started (PID: {process.pid})")
         except Exception as e:
             print(f"❌ Error starting line tracking: {e}", file=sys.stderr)
-            if PID_FILE.exists():
-                PID_FILE.unlink()
+            try:
+                PID_FILE.unlink(missing_ok=True)
+            except Exception:
+                pass
     elif command == "stop":
         stopped = False
         processes_killed = []
@@ -487,10 +498,16 @@ def handle_line_tracking(command):
                 except (OSError, ProcessLookupError):
                     print(f"[DEBUG] Process {pid} does not exist")
                 finally:
-                    PID_FILE.unlink()
+                    try:
+                        PID_FILE.unlink(missing_ok=True)
+                    except Exception:
+                        pass
             except (ValueError, OSError) as e:
                 print(f"[DEBUG] Error reading PID file: {e}")
-                PID_FILE.unlink()
+                try:
+                    PID_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
 
         # Always try pkill as well (most reliable method)
         try:
@@ -574,9 +591,15 @@ def handle_obstacle_avoidance(command):
                     return
                 except OSError:
                     # Process doesn't exist, remove stale PID file
-                    PID_FILE.unlink()
+                    try:
+                        PID_FILE.unlink(missing_ok=True)
+                    except Exception:
+                        pass
             except (ValueError, OSError):
-                PID_FILE.unlink()
+                try:
+                    PID_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
 
         # IMPORTANT: Release IR sensors so obstacle_navigator.py has full GPIO access
         release_infrared()
@@ -600,13 +623,18 @@ def handle_obstacle_avoidance(command):
             if process.poll() is not None:
                 # Process died immediately
                 print(f"❌ Obstacle avoidance failed to start (PID {process.pid} exited immediately)")
-                PID_FILE.unlink()
+                try:
+                    PID_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
             else:
                 print(f"✅ Obstacle avoidance started (PID: {process.pid})")
         except Exception as e:
             print(f"Error starting obstacle avoidance: {e}")
-            if PID_FILE.exists():
-                PID_FILE.unlink()
+            try:
+                PID_FILE.unlink(missing_ok=True)
+            except Exception:
+                pass
     elif command == "stop":
         # Stop obstacle navigator (matches reference project pattern)
         stopped = False
@@ -763,7 +791,6 @@ def main():
         print("\n[command_listener] Shutting down...", flush=True)
         client.disconnect()
     except Exception as e:
-        import traceback
         print(f"[command_listener] Error: {e}", flush=True)
         traceback.print_exc()
 
