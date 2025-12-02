@@ -399,12 +399,17 @@ def api_line_tracking_stop():
 @app.route('/api/obstacle-avoidance/start', methods=['POST'])
 def api_obstacle_avoidance_start():
     """Start obstacle avoidance algorithm"""
+    app.logger.info("[API_START] ===== Obstacle avoidance start requested =====")
     try:
         success = send_adafruit_command("obstacle_avoidance", "start")
-        return jsonify({"success": success})
+        if success:
+            app.logger.info("[API_START] ✅ Command sent successfully to Adafruit IO")
+        else:
+            app.logger.error("[API_START] ❌ FAILED to send command to Adafruit IO")
+        return jsonify({"success": success, "sent": success})
     except Exception as e:
-        print(f"Error in api_obstacle_avoidance_start: {e}")
-        return jsonify({"error": "Internal server error"}), 500
+        app.logger.exception(f"Error in api_obstacle_avoidance_start: {e}")
+        return jsonify({"error": "Internal server error", "sent": False}), 500
 
 @app.route('/api/obstacle-avoidance/stop', methods=['POST'])
 def api_obstacle_avoidance_stop():
