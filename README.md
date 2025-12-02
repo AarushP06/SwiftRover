@@ -1,6 +1,10 @@
 # SwiftRover
 
-IoT Smart Mobile Robot (Raspberry Pi) — Complete IoT system with telemetry, autonomous navigation, and **Flask web application** for remote monitoring and control.
+IoT Smart Mobile Robot (Raspberry Pi) - Complete IoT system with telemetry, autonomous navigation, and **Flask web application** for remote monitoring and control.
+
+Our robot follows a black line using IR sensors, avoids objects in its
+path with an ultrasonic sensor, and sends all its live data to a cloud
+dashboard on Adafruit IO.
 
 > Organized codebase with modular structure: hardware interfaces, server modules, telemetry utilities, Flask web app, and database sync.
 
@@ -10,8 +14,8 @@ IoT Smart Mobile Robot (Raspberry Pi) — Complete IoT system with telemetry, au
 
 ### Team Members
 
-- **Mir Faiyazur Rahman** — Hardware + Software
-- **Aarush Patel** — Software + Testing
+- **Mir Faiyazur Rahman** — Software + Testing
+- **Aarush Patel** — Hardware + Testing
 
 ### Course Info
 
@@ -27,6 +31,22 @@ IoT Smart Mobile Robot (Raspberry Pi) — Complete IoT system with telemetry, au
 | Adafruit IO Dashboard | https://io.adafruit.com/AarushP06/feeds    |
 | Neon.com Database     | https://console.neon.tech                  |
 | Video Demo            | https://www.youtube.com/shorts/C6nwZ4KSzSc |
+
+---
+
+## 🎥 Video Demonstration
+
+**YouTube:** https://www.youtube.com/shorts/C6nwZ4KSzSc
+
+---
+
+## 📝 Project Reflection
+
+For this project, we successfully built a robot that meets the core requirements. What worked really well was our modular `command_listener.py` script, which handles all the sensor readings and motor controls in one place. Using a `config.json` file was also a good decision, as it kept our API keys and pins out of the main code.
+
+The most difficult part was **calibrating the line-following algorithm** to work consistently across different lighting conditions. We spent a lot of time adjusting PID parameters and motor speeds to find the right balance. Another challenge was **setting up the MQTT telemetry system** to reliably publish sensor data without exceeding Adafruit IO's rate limits.
+
+If we had more time, we would improve the line-following algorithm with better PID tuning and add more sophisticated obstacle avoidance.
 
 ---
 
@@ -412,22 +432,6 @@ pip install smbus smbus2 spidev RPi.GPIO numpy
 - Ensure ultrasonic sensor is properly mounted
 - Check pan/tilt servos are calibrated
 - Verify sensor readings in debug output
-
----
-
-## 🎥 Video Demonstration
-
-**YouTube:** https://www.youtube.com/shorts/C6nwZ4KSzSc
-
----
-
-## 📝 Project Reflection
-
-For this project, we successfully built a robot that meets the core requirements. What worked really well was our modular `command_listener.py` script, which handles all the sensor readings and motor controls in one place. Using a `config.json` file was also a good decision, as it kept our API keys and pins out of the main code.
-
-The most difficult part was **calibrating the line-following algorithm** to work consistently across different lighting conditions. We spent a lot of time adjusting PID parameters and motor speeds to find the right balance. Another challenge was **setting up the MQTT telemetry system** to reliably publish sensor data without exceeding Adafruit IO's rate limits.
-
-If we had more time, we would improve the line-following algorithm with better PID tuning and add more sophisticated obstacle avoidance.
 
 ---
 
