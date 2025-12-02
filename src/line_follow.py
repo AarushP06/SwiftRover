@@ -57,7 +57,7 @@ def main():
     ap.add_argument("--active-low", action="store_true", help="use if sensors output 0 on black line")
     ap.add_argument("--sensor-order", default="1,2,3", help="map IR channels to L,M,R (e.g., '2,1,3')")
     ap.add_argument("--invert-steer", action="store_true", default=True, help="flip steering direction")
-    ap.add_argument("--invert-drive", action="store_true", default=False, help="flip overall forward/back")  # No inversion
+    ap.add_argument("--invert-drive", action="store_true", default=True, help="flip overall forward/back")  # Same as reference - motors need inversion
 
     # PD gains
     ap.add_argument("--kp", type=float, default=1000, help="P gain")
