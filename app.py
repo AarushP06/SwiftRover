@@ -184,30 +184,31 @@ def get_adafruit_data(feed_key):
 
 def send_adafruit_command(feed_key, value):
     """Send command to Adafruit IO feed"""
-    print(f"[SEND_COMMAND] Attempting to send command: feed_key='{feed_key}', value='{value}'")
+    app.logger.info(f"[SEND_COMMAND] Attempting to send command: feed_key='{feed_key}', value='{value}'")
     if not AIO_USERNAME or not AIO_KEY:
-        print(f"[SEND_COMMAND] ERROR: Missing credentials - AIO_USERNAME={bool(AIO_USERNAME)}, AIO_KEY={bool(AIO_KEY)}")
+        app.logger.error(f"[SEND_COMMAND] ERROR: Missing credentials - AIO_USERNAME={bool(AIO_USERNAME)}, AIO_KEY={bool(AIO_KEY)}")
         return False
     try:
         feed_name = AIO_FEEDS.get(feed_key, "")
         if not feed_name:
-            print(f"[SEND_COMMAND] ERROR: Feed key '{feed_key}' not found in AIO_FEEDS. Available keys: {list(AIO_FEEDS.keys())}")
+            app.logger.error(f"[SEND_COMMAND] ERROR: Feed key '{feed_key}' not found in AIO_FEEDS. Available keys: {list(AIO_FEEDS.keys())}")
             return False
-        print(f"[SEND_COMMAND] Using feed name: '{feed_name}' for key '{feed_key}'")
+        app.logger.info(f"[SEND_COMMAND] Using feed name: '{feed_name}' for key '{feed_key}'")
         url = f"https://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/{feed_name}/data"
         headers = {"X-AIO-Key": AIO_KEY, "Content-Type": "application/json"}
         data = {"value": str(value)}
-        print(f"[SEND_COMMAND] POST to {url} with value='{value}'")
+        app.logger.info(f"[SEND_COMMAND] POST to {url} with value='{value}'")
         response = requests.post(url, headers=headers, json=data, timeout=5)
         # Accept both 200 (OK) and 201 (Created) as success
         success = response.status_code in [200, 201]
         if success:
-            print(f"[SEND_COMMAND] SUCCESS: Command sent successfully (status {response.status_code})")
+            app.logger.info(f"[SEND_COMMAND] SUCCESS: Command sent successfully (status {response.status_code})")
+            app.logger.debug(f"[SEND_COMMAND] Response body: {response.text[:200]}")
         else:
-            print(f"[SEND_COMMAND] ERROR: Adafruit IO returned status {response.status_code}: {response.text}")
+            app.logger.error(f"[SEND_COMMAND] ERROR: Adafruit IO returned status {response.status_code}: {response.text}")
         return success
     except Exception as e:
-        print(f"[SEND_COMMAND] EXCEPTION: Error sending Adafruit command: {e}", exc_info=True)
+        app.logger.exception(f"[SEND_COMMAND] EXCEPTION: Error sending Adafruit command: {e}")
         return False
 
 # ============================================================================
@@ -408,21 +409,21 @@ def api_obstacle_avoidance_start():
 @app.route('/api/obstacle-avoidance/stop', methods=['POST'])
 def api_obstacle_avoidance_stop():
     """Stop obstacle avoidance algorithm"""
-    print("[API_STOP] ===== Obstacle avoidance stop requested =====")
+    app.logger.info("[API_STOP] ===== Obstacle avoidance stop requested =====")
     try:
         # Send the command and check if it succeeded
         success = send_adafruit_command("obstacle_avoidance", "stop")
         if success:
-            print("[API_STOP] ✅ Command sent successfully to Adafruit IO")
-            return jsonify({"success": True, "message": "Stop command sent"})
+            app.logger.info("[API_STOP] ✅ Command sent successfully to Adafruit IO")
+            return jsonify({"success": True, "message": "Stop command sent", "sent": True})
         else:
-            print("[API_STOP] ❌ FAILED to send command to Adafruit IO")
-            # Still return success to user, but log the error
-            return jsonify({"success": True, "message": "Stop command attempted (check logs)"})
+            app.logger.error("[API_STOP] ❌ FAILED to send command to Adafruit IO")
+            # Return actual failure status so frontend can see it
+            return jsonify({"success": False, "message": "Failed to send stop command", "sent": False})
     except Exception as e:
-        print(f"[API_STOP] ❌ EXCEPTION in api_obstacle_avoidance_stop: {e}", exc_info=True)
-        # Even on error, return success since stop is critical, but log the error
-        return jsonify({"success": True, "message": "Stop command attempted (error logged)"})
+        app.logger.exception(f"[API_STOP] ❌ EXCEPTION in api_obstacle_avoidance_stop: {e}")
+        # Return error status
+        return jsonify({"success": False, "message": "Error sending stop command", "sent": False, "error": str(e)})
 
 def start_sync_worker():
     """Start background thread for database sync"""
