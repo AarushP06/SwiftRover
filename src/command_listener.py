@@ -75,29 +75,29 @@ def on_message(client, userdata, msg):
     try:
         feed_name = msg.topic.split('/')[-1]
         value = msg.payload.decode('utf-8')
-        
+
         print(f"Received command: {feed_name} = {value}")
-        
+
         # Handle motor control
         if feed_name == CONTROL_FEEDS["motor_control"]:
             handle_motor_control(value)
-        
+
         # Handle LED control
         elif feed_name == CONTROL_FEEDS["led_control"]:
             handle_led_control(value)
-        
+
         # Handle buzzer control
         elif feed_name == CONTROL_FEEDS["buzzer_control"]:
             handle_buzzer_control(value)
-        
+
         # Handle line tracking
         elif feed_name == CONTROL_FEEDS["line_tracking"]:
             handle_line_tracking(value)
-        
+
         # Handle obstacle avoidance
         elif feed_name == CONTROL_FEEDS["obstacle_avoidance"]:
             handle_obstacle_avoidance(value)
-    
+
     except Exception as e:
         print(f"Error processing message: {e}")
 
@@ -142,10 +142,10 @@ def release_gpio_pins(trigger_pin=27, echo_pin=22):
             )
         except:
             pass
-        
+
         # Try to unexport GPIO pins if they're exported
         gpio_unexport_path = Path("/sys/class/gpio/unexport")
-        
+
         if gpio_unexport_path.exists():
             for pin in [trigger_pin, echo_pin]:
                 gpio_dir = Path(f"/sys/class/gpio/gpio{pin}")
@@ -200,7 +200,7 @@ def is_algorithm_running():
     """Check if line tracking or obstacle avoidance is running"""
     line_tracking_pid = Path("/tmp/line_follow.pid")
     obstacle_pid = Path("/tmp/obstacle_navigator.pid")
-    
+
     # Check line tracking
     if line_tracking_pid.exists():
         try:
@@ -209,7 +209,7 @@ def is_algorithm_running():
             return True  # Line tracking is running
         except (OSError, ValueError):
             pass
-    
+
     # Check obstacle avoidance
     if obstacle_pid.exists():
         try:
@@ -218,7 +218,7 @@ def is_algorithm_running():
             return True  # Obstacle avoidance is running
         except (OSError, ValueError):
             pass
-    
+
     return False  # No algorithms running
 
 def is_line_tracking_running():
@@ -240,29 +240,29 @@ def write_sensor_cache():
     NOTE: Does NOT initialize ultrasonic sensor to avoid GPIO conflicts
     """
     global _sensor_thread_running
-    
+
     # Only use IR sensors - do NOT initialize ultrasonic (algorithms write it themselves)
     infrared = get_infrared()
-    
+
     if not infrared:
         print("[sensor_cache] Warning: IR sensors not available, cache writing disabled")
         return
-    
+
     print("[sensor_cache] IR sensors available")
     print("[sensor_cache] Starting sensor cache writer thread (IR only - no ultrasonic)")
     print("[sensor_cache] Will read GPIO only when algorithms are NOT running")
     _sensor_thread_running = True
-    
+
     last_ir_time = 0
     ir_interval = 0.1     # Read IR every 100ms
-    
+
     while _sensor_thread_running:
         try:
             t = time.time()
-            
+
             # Check if algorithms are running (they write to cache themselves)
             algorithms_running = is_algorithm_running()
-            
+
             if not algorithms_running:
                 # No algorithms running - we can safely read IR GPIO and write to cache
                 if infrared and t - last_ir_time >= ir_interval:
@@ -286,13 +286,13 @@ def write_sensor_cache():
                         if age > 3.0:
                             print(f"[sensor_cache] Warning: IR cache not updated in {age:.1f}s (line tracking should be writing)")
                     last_ir_time = t
-            
+
             time.sleep(0.05)  # Small delay to prevent CPU overload
-            
+
         except Exception as e:
             print(f"[sensor_cache] Error in cache writer: {e}")
             time.sleep(0.5)  # Wait longer on error
-    
+
     print("[sensor_cache] Sensor cache writer thread stopped")
 
 def start_sensor_cache_writer():
@@ -309,22 +309,22 @@ def handle_motor_control(action):
         if not car:
             print("Motor not available")
             return
-        
+
         speed = 800
         turn_power = 1200
         drive_sign = 1  # No inversion - motors wired opposite to reference
-        
+
         if action == "forward":
             car.set_motor_model(int(speed)*drive_sign, int(speed)*drive_sign, int(speed)*drive_sign, int(speed)*drive_sign)
         elif action == "backward":
             car.set_motor_model(-int(speed)*drive_sign, -int(speed)*drive_sign, -int(speed)*drive_sign, -int(speed)*drive_sign)
         elif action == "left":
-            car.set_motor_model(-int(turn_power)*drive_sign, -int(turn_power)*drive_sign, +int(turn_power)*drive_sign, +int(turn_power)*drive_sign)
-        elif action == "right":
             car.set_motor_model(+int(turn_power)*drive_sign, +int(turn_power)*drive_sign, -int(turn_power)*drive_sign, -int(turn_power)*drive_sign)
+        elif action == "right":
+            car.set_motor_model(-int(turn_power)*drive_sign, -int(turn_power)*drive_sign, +int(turn_power)*drive_sign, +int(turn_power)*drive_sign)
         elif action == "stop":
             car.set_motor_model(0, 0, 0, 0)
-        
+
         print(f"Motor control: {action}")
     except Exception as e:
         print(f"Error controlling motor: {e}")
@@ -352,14 +352,14 @@ def handle_led_control(state):
         if not led:
             print("LED not available")
             return
-        
+
         if state == "on":
             # Turn on LEDs (white, brightness 200)
             led.set_all_led_color(200, 200, 200)
         elif state == "off":
             # Turn off LEDs
             led.set_all_led_color(0, 0, 0)
-        
+
         print(f"LED control: {state}")
     except Exception as e:
         print(f"Error controlling LED: {e}")
@@ -369,12 +369,12 @@ def handle_buzzer_control(state):
     try:
         from hardware.buzzer import Buzzer
         buzzer = Buzzer()
-        
+
         if state == "on":
             buzzer.set_state(1)
         elif state == "off":
             buzzer.set_state(0)
-        
+
         print(f"Buzzer control: {state}")
     except Exception as e:
         print(f"Error controlling buzzer: {e}")
@@ -384,7 +384,7 @@ def handle_line_tracking(command):
     import subprocess
     BASE_DIR = Path(__file__).resolve().parent
     PID_FILE = Path("/tmp/line_follow.pid")
-    
+
     if command == "start":
         # Check if already running
         if PID_FILE.exists():
@@ -400,11 +400,11 @@ def handle_line_tracking(command):
                     PID_FILE.unlink()
             except (ValueError, OSError):
                 PID_FILE.unlink()
-        
+
         # IMPORTANT: Release IR sensors so line_follow.py can use them
         release_infrared()
         time.sleep(0.5)  # Give GPIO time to fully release
-        
+
         # Start line following script
         script = BASE_DIR / "line_follow.py"
         try:
@@ -418,7 +418,7 @@ def handle_line_tracking(command):
             )
             # Save PID
             PID_FILE.write_text(str(process.pid))
-            
+
             # Check if it started successfully (wait a bit longer)
             time.sleep(1.0)
             if process.poll() is not None:
@@ -435,7 +435,7 @@ def handle_line_tracking(command):
         # Stop line following
         stopped = False
         processes_killed = []
-        
+
         # First try using PID file
         if PID_FILE.exists():
             try:
@@ -445,14 +445,14 @@ def handle_line_tracking(command):
                     # Check if process exists
                     os.kill(pid, 0)  # Signal 0 just checks if process exists
                     print(f"[DEBUG] Process {pid} exists, attempting to kill...")
-                    
+
                     # Try to get process group and kill it
                     try:
                         pgid = os.getpgid(pid)
                         print(f"[DEBUG] Process group: {pgid}")
                         os.killpg(pgid, signal.SIGTERM)  # Kill process group
                         time.sleep(0.5)
-                        
+
                         # Check if still running
                         try:
                             os.kill(pid, 0)
@@ -461,7 +461,7 @@ def handle_line_tracking(command):
                             time.sleep(0.2)
                         except (OSError, ProcessLookupError):
                             print(f"[DEBUG] Process {pid} terminated")
-                        
+
                         stopped = True
                         processes_killed.append(pid)
                     except (OSError, ProcessLookupError) as e:
@@ -482,7 +482,7 @@ def handle_line_tracking(command):
             except (ValueError, OSError) as e:
                 print(f"[DEBUG] Error reading PID file: {e}")
                 PID_FILE.unlink()
-        
+
         # Always try pkill as well (most reliable method)
         try:
             print("[DEBUG] Using pkill to find and kill line_follow.py processes...")
@@ -503,7 +503,7 @@ def handle_line_tracking(command):
             print("[DEBUG] pkill timed out")
         except Exception as e:
             print(f"[DEBUG] Error using pkill: {e}")
-        
+
         # Verify it's actually stopped - check multiple patterns
         try:
             patterns_to_check = ["line_follow.py", "line-follow", "line_follow"]
@@ -533,7 +533,7 @@ def handle_line_tracking(command):
                 stopped = True
         except Exception as e:
             print(f"[DEBUG] Error verifying stop: {e}")
-        
+
         # Always stop motors when stopping line tracking
         try:
             car = get_car()
@@ -542,7 +542,7 @@ def handle_line_tracking(command):
                 print("[DEBUG] Motors stopped")
         except Exception as e:
             print(f"[DEBUG] Error stopping motors: {e}")
-        
+
         if stopped:
             print("✅ Line tracking stopped")
         else:
@@ -552,7 +552,7 @@ def handle_obstacle_avoidance(command):
     """Handle obstacle avoidance commands"""
     BASE_DIR = Path(__file__).resolve().parent
     PID_FILE = Path("/tmp/obstacle_navigator.pid")
-    
+
     if command == "start":
         # Check if already running
         if PID_FILE.exists():
@@ -568,11 +568,11 @@ def handle_obstacle_avoidance(command):
                     PID_FILE.unlink()
             except (ValueError, OSError):
                 PID_FILE.unlink()
-        
+
         # IMPORTANT: Release IR sensors so obstacle_navigator.py has full GPIO access
         release_infrared()
         time.sleep(0.5)  # Give GPIO time to fully release
-        
+
         # Start obstacle navigator script
         script = BASE_DIR / "obstacle_navigator.py"
         try:
@@ -585,7 +585,7 @@ def handle_obstacle_avoidance(command):
             )
             # Save PID
             PID_FILE.write_text(str(process.pid))
-            
+
             # Check if it started successfully (wait a bit longer)
             time.sleep(1.0)
             if process.poll() is not None:
@@ -601,7 +601,7 @@ def handle_obstacle_avoidance(command):
     elif command == "stop":
         # Stop obstacle navigator
         stopped = False
-        
+
         # First try using PID file
         if PID_FILE.exists():
             try:
@@ -665,7 +665,7 @@ def handle_obstacle_avoidance(command):
             print("[DEBUG] pkill timed out")
         except Exception as e:
             print(f"[DEBUG] Error using pkill: {e}")
-        
+
         # Verify it's actually stopped
         try:
             check_result = subprocess.run(
@@ -693,7 +693,7 @@ def handle_obstacle_avoidance(command):
                 stopped = True
         except:
             pass
-        
+
         # Always stop motors when stopping obstacle avoidance
         try:
             car = get_car()
@@ -702,7 +702,7 @@ def handle_obstacle_avoidance(command):
                 print("[DEBUG] Motors stopped")
         except Exception as e:
             print(f"[DEBUG] Error stopping motors: {e}")
-        
+
         if stopped:
             print("✅ Obstacle avoidance stopped")
         else:
@@ -711,18 +711,18 @@ def handle_obstacle_avoidance(command):
 def main():
     """Main function - MQTT command listener only, NO sensor handling"""
     global _sensor_thread_running
-    
+
     # IMPORTANT: Do NOT start sensor cache writer!
     # Algorithms (line_follow.py, obstacle_navigator.py) handle sensors themselves
     # This avoids GPIO conflicts
     print("[command_listener] Starting (NO sensor reading - algorithms handle sensors)")
-    
+
     # Set up MQTT client for command listening
     client = mqtt.Client(client_id="robot_command_listener")
     client.username_pw_set(AIO_USERNAME, AIO_KEY)
     client.on_connect = on_connect
     client.on_message = on_message
-    
+
     try:
         print("[command_listener] Connecting to Adafruit IO...")
         client.connect("io.adafruit.com", 1883, 60)
