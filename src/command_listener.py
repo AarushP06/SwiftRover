@@ -60,11 +60,11 @@ def on_connect(client, userdata, flags, rc):
     """Callback when connected to MQTT broker"""
     if rc == 0:
         print("Connected to Adafruit IO", flush=True)
-        # Subscribe to all control feeds with QoS 1 for reliable delivery
+        # Subscribe to all control feeds (QoS 0 default)
         for key, feed_name in CONTROL_FEEDS.items():
             topic = f"{AIO_USERNAME}/feeds/{feed_name}"
-            client.subscribe(topic, qos=1)
-            print(f"Subscribed to {topic} (QoS 1)", flush=True)
+            client.subscribe(topic)
+            print(f"Subscribed to {topic}", flush=True)
     else:
         print(f"Connection failed with code {rc}", flush=True)
 
@@ -606,82 +606,72 @@ def handle_obstacle_avoidance(command):
             if PID_FILE.exists():
                 PID_FILE.unlink()
     elif command == "stop":
-        print(f"[OBSTACLE_STOP] ===== STOP COMMAND RECEIVED =====", flush=True)
-        
-        # CRITICAL: Stop motors IMMEDIATELY first
-        try:
-            car = get_car()
-            if car:
-                car.set_motor_model(0, 0, 0, 0)
-                print("[OBSTACLE_STOP] ✅ Motors stopped immediately", flush=True)
-            else:
-                print("[OBSTACLE_STOP] ⚠️  Car instance not available", flush=True)
-        except Exception as e:
-            print(f"[OBSTACLE_STOP] ❌ Error stopping motors: {e}", flush=True)
-
+        # Stop obstacle navigator (matches reference project pattern)
         stopped = False
-
-        # Always try pkill first (most reliable and aggressive method)
+        
+        # First try using PID file
+        if PID_FILE.exists():
+            try:
+                pid = int(PID_FILE.read_text().strip())
+                print(f"[DEBUG] Found PID file with PID: {pid}", flush=True)
+                try:
+                    os.kill(pid, 0)  # Check if process exists
+                    print(f"[DEBUG] Process {pid} exists, attempting to kill...", flush=True)
+                    
+                    # Try to get process group and kill it
+                    try:
+                        pgid = os.getpgid(pid)
+                        print(f"[DEBUG] Process group: {pgid}", flush=True)
+                        os.killpg(pgid, signal.SIGTERM)
+                        time.sleep(0.5)
+                        
+                        # Check if still running
+                        try:
+                            os.kill(pid, 0)
+                            print(f"[DEBUG] Process still running, force killing...", flush=True)
+                            os.killpg(pgid, signal.SIGKILL)
+                            time.sleep(0.2)
+                        except (OSError, ProcessLookupError):
+                            print(f"[DEBUG] Process {pid} terminated", flush=True)
+                        
+                        stopped = True
+                    except (OSError, ProcessLookupError) as e:
+                        print(f"[DEBUG] Could not kill process group: {e}", flush=True)
+                        # Try killing just the process
+                        try:
+                            os.kill(pid, signal.SIGTERM)
+                            time.sleep(0.3)
+                            os.kill(pid, signal.SIGKILL)
+                            stopped = True
+                        except (OSError, ProcessLookupError):
+                            pass
+                except (OSError, ProcessLookupError):
+                    print(f"[DEBUG] Process {pid} does not exist", flush=True)
+                finally:
+                    PID_FILE.unlink()
+            except (ValueError, OSError) as e:
+                print(f"[DEBUG] Error reading PID file: {e}", flush=True)
+                PID_FILE.unlink()
+        
+        # Always try pkill as well (most reliable method)
         try:
-            print("[OBSTACLE_STOP] Using pkill -9 to forcefully kill obstacle_navigator.py processes...", flush=True)
+            print("[DEBUG] Using pkill to find and kill obstacle_navigator.py processes...", flush=True)
             result = subprocess.run(
-                ["pkill", "-9", "-f", "obstacle_navigator.py"],
+                ["pkill", "-f", "obstacle_navigator.py"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=2
             )
-            print(f"[OBSTACLE_STOP] pkill return code: {result.returncode}", flush=True)
-            if result.stdout:
-                print(f"[OBSTACLE_STOP] pkill stdout: {result.stdout.decode()}", flush=True)
-            if result.stderr:
-                print(f"[OBSTACLE_STOP] pkill stderr: {result.stderr.decode()}", flush=True)
             if result.returncode == 0:
                 stopped = True
-                print("[OBSTACLE_STOP] ✅ pkill -9 killed obstacle_navigator.py processes", flush=True)
+                print("[DEBUG] pkill found and killed obstacle_navigator.py processes", flush=True)
             elif result.returncode == 1:
-                print("[OBSTACLE_STOP] ℹ️  pkill found no matching processes (may already be stopped)", flush=True)
+                print("[DEBUG] pkill found no matching processes", flush=True)
         except subprocess.TimeoutExpired:
-            print("[OBSTACLE_STOP] ⚠️  pkill timed out", flush=True)
+            print("[DEBUG] pkill timed out", flush=True)
         except Exception as e:
-            print(f"[OBSTACLE_STOP] ❌ Error using pkill: {e}", flush=True)
-
-        # Also try PID file method
-        if PID_FILE.exists():
-            try:
-                pid = int(PID_FILE.read_text().strip())
-                print(f"[OBSTACLE_STOP] Found PID file with PID: {pid}", flush=True)
-                try:
-                    os.kill(pid, 0)  # Check if process exists
-                    print(f"[OBSTACLE_STOP] Process {pid} exists, attempting to kill...", flush=True)
-                    try:
-                        pgid = os.getpgid(pid)
-                        print(f"[OBSTACLE_STOP] Killing process group {pgid}", flush=True)
-                        os.killpg(pgid, signal.SIGKILL)
-                        time.sleep(0.2)
-                        stopped = True
-                        print(f"[OBSTACLE_STOP] ✅ Killed process group {pgid}", flush=True)
-                    except (OSError, ProcessLookupError) as e:
-                        print(f"[OBSTACLE_STOP] Could not kill process group: {e}", flush=True)
-                        try:
-                            os.kill(pid, signal.SIGKILL)
-                            stopped = True
-                            print(f"[OBSTACLE_STOP] ✅ Killed process {pid} directly", flush=True)
-                        except (OSError, ProcessLookupError) as e2:
-                            print(f"[OBSTACLE_STOP] Could not kill process {pid}: {e2}", flush=True)
-                except (OSError, ProcessLookupError):
-                    print(f"[OBSTACLE_STOP] Process {pid} does not exist (stale PID file)", flush=True)
-            except (ValueError, OSError) as e:
-                print(f"[OBSTACLE_STOP] Error reading PID file: {e}", flush=True)
-            finally:
-                # Always remove PID file
-                try:
-                    PID_FILE.unlink()
-                    print(f"[OBSTACLE_STOP] Removed PID file", flush=True)
-                except Exception as e:
-                    print(f"[OBSTACLE_STOP] Could not remove PID file: {e}", flush=True)
-        else:
-            print("[OBSTACLE_STOP] No PID file found", flush=True)
-
+            print(f"[DEBUG] Error using pkill: {e}", flush=True)
+        
         # Verify it's actually stopped
         try:
             check_result = subprocess.run(
@@ -694,34 +684,35 @@ def handle_obstacle_avoidance(command):
                 remaining_pids = check_result.stdout.decode().strip().split('\n')
                 remaining_pids = [p for p in remaining_pids if p]
                 if remaining_pids:
-                    print(f"[OBSTACLE_STOP] ⚠️  Warning: Still found processes: {remaining_pids}", flush=True)
+                    print(f"[DEBUG] Warning: Still found processes: {remaining_pids}", flush=True)
+                    # Try one more time with SIGKILL
                     for pid_str in remaining_pids:
                         try:
                             pid = int(pid_str)
                             os.kill(pid, signal.SIGKILL)
-                            print(f"[OBSTACLE_STOP] ✅ Force killed remaining process {pid}", flush=True)
-                        except Exception as e:
-                            print(f"[OBSTACLE_STOP] Could not kill process {pid_str}: {e}", flush=True)
+                            print(f"[DEBUG] Force killed remaining process {pid}", flush=True)
+                        except:
+                            pass
                 else:
                     stopped = True
             else:
                 stopped = True
-                print("[OBSTACLE_STOP] ✅ Verified: No obstacle_navigator.py processes running", flush=True)
-        except Exception as e:
-            print(f"[OBSTACLE_STOP] Error verifying stop: {e}", flush=True)
-
-        # Stop motors again to be absolutely sure
+        except:
+            pass
+        
+        # Always stop motors when stopping obstacle avoidance
         try:
             car = get_car()
             if car:
                 car.set_motor_model(0, 0, 0, 0)
-                print("[OBSTACLE_STOP] ✅ Motors stopped again (final check)", flush=True)
+                print("[DEBUG] Motors stopped", flush=True)
         except Exception as e:
-            print(f"[OBSTACLE_STOP] Error in final motor stop: {e}", flush=True)
-
-        # Always report success - motors are guaranteed to be stopped
-        print("[OBSTACLE_STOP] ===== STOP COMPLETE =====", flush=True)
-        print("✅ Obstacle avoidance stopped", flush=True)
+            print(f"[DEBUG] Error stopping motors: {e}", flush=True)
+        
+        if stopped:
+            print("✅ Obstacle avoidance stopped", flush=True)
+        else:
+            print("⚠️  Obstacle avoidance stop attempted (check if process was running)", flush=True)
 
 def main():
     """Main function - MQTT command listener only, NO sensor handling"""

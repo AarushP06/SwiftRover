@@ -163,10 +163,25 @@ def get_historical_data(date_str=None):
 # Adafruit IO Functions
 # ============================================================================
 
+# Cache for Adafruit IO data to reduce API calls (free tier has 30/min limit)
+_adafruit_cache = {}
+_adafruit_cache_time = {}
+ADAFRUIT_CACHE_TTL = 5  # Cache for 5 seconds
+
 def get_adafruit_data(feed_key):
-    """Get latest value from Adafruit IO feed via HTTP"""
+    """Get latest value from Adafruit IO feed via HTTP (with caching)"""
+    global _adafruit_cache, _adafruit_cache_time
+    
     if not AIO_USERNAME or not AIO_KEY:
         return None
+    
+    # Check cache first
+    now = time.time()
+    if feed_key in _adafruit_cache:
+        cache_age = now - _adafruit_cache_time.get(feed_key, 0)
+        if cache_age < ADAFRUIT_CACHE_TTL:
+            return _adafruit_cache[feed_key]
+    
     try:
         feed_name = AIO_FEEDS.get(feed_key, "")
         if not feed_name:
@@ -176,15 +191,38 @@ def get_adafruit_data(feed_key):
         response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
             data = response.json()
-            return data.get("value")
+            value = data.get("value")
+            # Update cache
+            _adafruit_cache[feed_key] = value
+            _adafruit_cache_time[feed_key] = now
+            return value
+        elif response.status_code == 429:
+            # Rate limited - return cached value if available
+            return _adafruit_cache.get(feed_key)
         return None
     except Exception as e:
         print(f"Error fetching Adafruit data: {e}")
-        return None
+        # Return cached value on error
+        return _adafruit_cache.get(feed_key)
+
+# Rate limiting tracker
+_last_command_time = {}
+RATE_LIMIT_SECONDS = 2  # Minimum seconds between commands to same feed
 
 def send_adafruit_command(feed_key, value):
-    """Send command to Adafruit IO feed"""
+    """Send command to Adafruit IO feed with rate limiting protection"""
+    global _last_command_time
+    
     app.logger.info(f"[SEND_COMMAND] Attempting to send command: feed_key='{feed_key}', value='{value}'")
+    
+    # Check local rate limit to prevent spam
+    now = time.time()
+    last_time = _last_command_time.get(feed_key, 0)
+    if now - last_time < RATE_LIMIT_SECONDS:
+        wait_time = RATE_LIMIT_SECONDS - (now - last_time)
+        app.logger.warning(f"[SEND_COMMAND] Local rate limit: wait {wait_time:.1f}s before sending to {feed_key}")
+        return "rate_limited"
+    
     if not AIO_USERNAME or not AIO_KEY:
         app.logger.error(f"[SEND_COMMAND] ERROR: Missing credentials - AIO_USERNAME={bool(AIO_USERNAME)}, AIO_KEY={bool(AIO_KEY)}")
         return False
@@ -199,9 +237,16 @@ def send_adafruit_command(feed_key, value):
         data = {"value": str(value)}
         app.logger.info(f"[SEND_COMMAND] POST to {url} with value='{value}'")
         response = requests.post(url, headers=headers, json=data, timeout=5)
+        
+        # Handle rate limiting from Adafruit IO
+        if response.status_code == 429:
+            app.logger.error(f"[SEND_COMMAND] RATE LIMITED by Adafruit IO: {response.text}")
+            return "rate_limited"
+        
         # Accept both 200 (OK) and 201 (Created) as success
         success = response.status_code in [200, 201]
         if success:
+            _last_command_time[feed_key] = now  # Update last command time
             app.logger.info(f"[SEND_COMMAND] SUCCESS: Command sent successfully (status {response.status_code})")
             app.logger.debug(f"[SEND_COMMAND] Response body: {response.text[:200]}")
         else:
@@ -333,8 +378,10 @@ def api_control_motor():
             return jsonify({"error": "Invalid action"}), 400
 
         # Send command to Adafruit IO (which will be picked up by Raspberry Pi)
-        success = send_adafruit_command("motor_control", action)
-        return jsonify({"success": success, "action": action})
+        result = send_adafruit_command("motor_control", action)
+        if result == "rate_limited":
+            return jsonify({"success": False, "action": action, "rate_limited": True}), 429
+        return jsonify({"success": bool(result), "action": action})
     except Exception as e:
         print(f"Error in api_control_motor: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -350,8 +397,10 @@ def api_control_led():
         if not isinstance(state, str) or state not in ['on', 'off']:
             return jsonify({"error": "Invalid state"}), 400
 
-        success = send_adafruit_command("led_control", state)
-        return jsonify({"success": success, "state": state})
+        result = send_adafruit_command("led_control", state)
+        if result == "rate_limited":
+            return jsonify({"success": False, "state": state, "rate_limited": True}), 429
+        return jsonify({"success": bool(result), "state": state})
     except Exception as e:
         print(f"Error in api_control_led: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -367,8 +416,10 @@ def api_control_buzzer():
         if not isinstance(state, str) or state not in ['on', 'off']:
             return jsonify({"error": "Invalid state"}), 400
 
-        success = send_adafruit_command("buzzer_control", state)
-        return jsonify({"success": success, "state": state})
+        result = send_adafruit_command("buzzer_control", state)
+        if result == "rate_limited":
+            return jsonify({"success": False, "state": state, "rate_limited": True}), 429
+        return jsonify({"success": bool(result), "state": state})
     except Exception as e:
         print(f"Error in api_control_buzzer: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -377,8 +428,10 @@ def api_control_buzzer():
 def api_line_tracking_start():
     """Start line tracking algorithm"""
     try:
-        success = send_adafruit_command("line_tracking", "start")
-        return jsonify({"success": success})
+        result = send_adafruit_command("line_tracking", "start")
+        if result == "rate_limited":
+            return jsonify({"success": False, "message": "Rate limited - please wait 2 seconds", "rate_limited": True}), 429
+        return jsonify({"success": bool(result)})
     except Exception as e:
         print(f"Error in api_line_tracking_start: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -387,26 +440,29 @@ def api_line_tracking_start():
 def api_line_tracking_stop():
     """Stop line tracking algorithm"""
     try:
-        # Always send the command, but always return success since motors are stopped immediately
-        send_adafruit_command("line_tracking", "stop")
-        # Always return success - motors are stopped immediately on robot side
+        result = send_adafruit_command("line_tracking", "stop")
+        if result == "rate_limited":
+            return jsonify({"success": False, "message": "Rate limited - please wait 2 seconds", "rate_limited": True}), 429
         return jsonify({"success": True, "message": "Stop command sent"})
     except Exception as e:
         print(f"Error in api_line_tracking_stop: {e}")
-        # Even on error, return success since stop is critical
-        return jsonify({"success": True, "message": "Stop command sent"})
+        return jsonify({"success": False, "message": "Error sending stop command"})
 
 @app.route('/api/obstacle-avoidance/start', methods=['POST'])
 def api_obstacle_avoidance_start():
     """Start obstacle avoidance algorithm"""
     app.logger.info("[API_START] ===== Obstacle avoidance start requested =====")
     try:
-        success = send_adafruit_command("obstacle_avoidance", "start")
-        if success:
+        result = send_adafruit_command("obstacle_avoidance", "start")
+        if result == "rate_limited":
+            app.logger.warning("[API_START] ⚠️ Rate limited - please wait before retrying")
+            return jsonify({"success": False, "message": "Rate limited - please wait 2 seconds", "rate_limited": True}), 429
+        elif result:
             app.logger.info("[API_START] ✅ Command sent successfully to Adafruit IO")
+            return jsonify({"success": True, "sent": True})
         else:
             app.logger.error("[API_START] ❌ FAILED to send command to Adafruit IO")
-        return jsonify({"success": success, "sent": success})
+            return jsonify({"success": False, "sent": False})
     except Exception as e:
         app.logger.exception(f"Error in api_obstacle_avoidance_start: {e}")
         return jsonify({"error": "Internal server error", "sent": False}), 500
@@ -416,18 +472,18 @@ def api_obstacle_avoidance_stop():
     """Stop obstacle avoidance algorithm"""
     app.logger.info("[API_STOP] ===== Obstacle avoidance stop requested =====")
     try:
-        # Send the command and check if it succeeded
-        success = send_adafruit_command("obstacle_avoidance", "stop")
-        if success:
+        result = send_adafruit_command("obstacle_avoidance", "stop")
+        if result == "rate_limited":
+            app.logger.warning("[API_STOP] ⚠️ Rate limited - please wait before retrying")
+            return jsonify({"success": False, "message": "Rate limited - please wait 2 seconds", "rate_limited": True}), 429
+        elif result:
             app.logger.info("[API_STOP] ✅ Command sent successfully to Adafruit IO")
             return jsonify({"success": True, "message": "Stop command sent", "sent": True})
         else:
             app.logger.error("[API_STOP] ❌ FAILED to send command to Adafruit IO")
-            # Return actual failure status so frontend can see it
             return jsonify({"success": False, "message": "Failed to send stop command", "sent": False})
     except Exception as e:
         app.logger.exception(f"[API_STOP] ❌ EXCEPTION in api_obstacle_avoidance_stop: {e}")
-        # Return error status
         return jsonify({"success": False, "message": "Error sending stop command", "sent": False, "error": str(e)})
 
 def start_sync_worker():
