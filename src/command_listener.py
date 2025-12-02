@@ -105,7 +105,9 @@ def on_message(client, userdata, msg):
             print(f"[MQTT] WARNING: Received message for unknown feed: {feed_name} = {value}", flush=True)
 
     except Exception as e:
-        print(f"[MQTT] ERROR processing message: {e}", exc_info=True, flush=True)
+        import traceback
+        print(f"[MQTT] ERROR processing message: {e}", flush=True)
+        traceback.print_exc()
 
 # Global car instance (reused)
 _car_instance = None
@@ -648,10 +650,16 @@ def handle_obstacle_avoidance(command):
                 except (OSError, ProcessLookupError):
                     print(f"[DEBUG] Process {pid} does not exist", flush=True)
                 finally:
-                    PID_FILE.unlink()
+                    try:
+                        PID_FILE.unlink(missing_ok=True)
+                    except Exception:
+                        pass
             except (ValueError, OSError) as e:
                 print(f"[DEBUG] Error reading PID file: {e}", flush=True)
-                PID_FILE.unlink()
+                try:
+                    PID_FILE.unlink(missing_ok=True)
+                except Exception:
+                    pass
         
         # Always try pkill as well (most reliable method)
         try:
@@ -755,7 +763,9 @@ def main():
         print("\n[command_listener] Shutting down...", flush=True)
         client.disconnect()
     except Exception as e:
-        print(f"[command_listener] Error: {e}", exc_info=True, flush=True)
+        import traceback
+        print(f"[command_listener] Error: {e}", flush=True)
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()

@@ -234,39 +234,39 @@ class HeadUltrasonicNavigator:
 
         # Check for obstacles using last_ahead (outside the if/else!)
         if self.last_ahead <= self.obs_th:
-            # STOP immediately
-            self.stop()
-            if verbose: print(f"[NAV] <= {self.obs_th:.0f}cm -> STOP + REVERSE")
-            # reverse
-            self.reverse(t=self.reverse_time)
+                # STOP immediately
+                self.stop()
+                if verbose: print(f"[NAV] <= {self.obs_th:.0f}cm -> STOP + REVERSE")
+                # reverse
+                self.reverse(t=self.reverse_time)
 
-            # quick L/R + up/down probe around center
-            center_p = self.pan.center
-            center_t = self.tilt.center
-            # left/right near center tilt
-            left_mid  = self._peek_pan_tilt(center_p+25, center_t)
-            right_mid = self._peek_pan_tilt(center_p-25, center_t)
-            # up/down straight ahead (check over/under)
-            up_ahead   = self._peek_pan_tilt(center_p, min(self.tilt.max_deg, center_t+15))
-            down_ahead = self._peek_pan_tilt(center_p, max(self.tilt.min_deg, center_t-15))
-            if verbose: print(f"[NAV] probe Lm={left_mid:.1f} Rm={right_mid:.1f} Up={up_ahead:.1f} Dn={down_ahead:.1f}")
+                # quick L/R + up/down probe around center
+                center_p = self.pan.center
+                center_t = self.tilt.center
+                # left/right near center tilt
+                left_mid  = self._peek_pan_tilt(center_p+25, center_t)
+                right_mid = self._peek_pan_tilt(center_p-25, center_t)
+                # up/down straight ahead (check over/under)
+                up_ahead   = self._peek_pan_tilt(center_p, min(self.tilt.max_deg, center_t+15))
+                down_ahead = self._peek_pan_tilt(center_p, max(self.tilt.min_deg, center_t-15))
+                if verbose: print(f"[NAV] probe Lm={left_mid:.1f} Rm={right_mid:.1f} Up={up_ahead:.1f} Dn={down_ahead:.1f}")
 
-            # choose best horizontal side; if both bad, prefer the one with better vertical clearance
-            L = max(left_mid, up_ahead, down_ahead) if left_mid < self.obs_th else left_mid
-            R = max(right_mid, up_ahead, down_ahead) if right_mid < self.obs_th else right_mid
-            if L > R:
-                dur=self._pivot_time_from_dist(L)
-                if verbose: print(f"[NAV] pivot LEFT for {dur:.2f}s")
-                self.pivot_left(dur=dur)
-            else:
-                dur=self._pivot_time_from_dist(R)
-                if verbose: print(f"[NAV] pivot RIGHT for {dur:.2f}s")
-                self.pivot_right(dur=dur)
+                # choose best horizontal side; if both bad, prefer the one with better vertical clearance
+                L = max(left_mid, up_ahead, down_ahead) if left_mid < self.obs_th else left_mid
+                R = max(right_mid, up_ahead, down_ahead) if right_mid < self.obs_th else right_mid
+                if L > R:
+                    dur=self._pivot_time_from_dist(L)
+                    if verbose: print(f"[NAV] pivot LEFT for {dur:.2f}s")
+                    self.pivot_left(dur=dur)
+                else:
+                    dur=self._pivot_time_from_dist(R)
+                    if verbose: print(f"[NAV] pivot RIGHT for {dur:.2f}s")
+                    self.pivot_right(dur=dur)
 
-            # short forward roll to clear obstacle zone
-            self.forward(int(self.forward_power*0.7))
-            time.sleep(self.post_roll_time)
-            self.stop()
+                # short forward roll to clear obstacle zone
+                self.forward(int(self.forward_power*0.7))
+                time.sleep(self.post_roll_time)
+                self.stop()
 
 # ---------- demo runner ----------
 def main():
