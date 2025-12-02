@@ -59,14 +59,14 @@ _sensor_thread_running = False
 def on_connect(client, userdata, flags, rc):
     """Callback when connected to MQTT broker"""
     if rc == 0:
-        print("Connected to Adafruit IO")
-        # Subscribe to all control feeds
+        print("Connected to Adafruit IO", flush=True)
+        # Subscribe to all control feeds with QoS 1 for reliable delivery
         for key, feed_name in CONTROL_FEEDS.items():
             topic = f"{AIO_USERNAME}/feeds/{feed_name}"
-            client.subscribe(topic)
-            print(f"Subscribed to {topic}")
+            client.subscribe(topic, qos=1)
+            print(f"Subscribed to {topic} (QoS 1)", flush=True)
     else:
-        print(f"Connection failed with code {rc}")
+        print(f"Connection failed with code {rc}", flush=True)
 
 def on_message(client, userdata, msg):
     """Callback when message is received"""
@@ -75,37 +75,37 @@ def on_message(client, userdata, msg):
         feed_name = topic.split('/')[-1]
         value = msg.payload.decode('utf-8')
         
-        print(f"[MQTT_RAW] Received message on topic: {topic}, feed_name: {feed_name}, value: '{value}'")
+        print(f"[MQTT_RAW] Received message on topic: {topic}, feed_name: {feed_name}, value: '{value}'", flush=True)
 
         # Handle motor control
         if feed_name == CONTROL_FEEDS["motor_control"]:
-            print(f"[MQTT] Received motor_control command: '{value}'")
+            print(f"[MQTT] Received motor_control command: '{value}'", flush=True)
             handle_motor_control(value)
 
         # Handle LED control
         elif feed_name == CONTROL_FEEDS["led_control"]:
-            print(f"[MQTT] Received led_control command: '{value}'")
+            print(f"[MQTT] Received led_control command: '{value}'", flush=True)
             handle_led_control(value)
 
         # Handle buzzer control
         elif feed_name == CONTROL_FEEDS["buzzer_control"]:
-            print(f"[MQTT] Received buzzer_control command: '{value}'")
+            print(f"[MQTT] Received buzzer_control command: '{value}'", flush=True)
             handle_buzzer_control(value)
 
         # Handle line tracking
         elif feed_name == CONTROL_FEEDS["line_tracking"]:
-            print(f"[MQTT] Received line_tracking command: '{value}'")
+            print(f"[MQTT] Received line_tracking command: '{value}'", flush=True)
             handle_line_tracking(value)
 
         # Handle obstacle avoidance
         elif feed_name == CONTROL_FEEDS["obstacle_avoidance"]:
-            print(f"[MQTT] Received obstacle_avoidance command: '{value}'")
+            print(f"[MQTT] Received obstacle_avoidance command: '{value}'", flush=True)
             handle_obstacle_avoidance(value)
         else:
-            print(f"[MQTT] WARNING: Received message for unknown feed: {feed_name} = {value}")
+            print(f"[MQTT] WARNING: Received message for unknown feed: {feed_name} = {value}", flush=True)
 
     except Exception as e:
-        print(f"[MQTT] ERROR processing message: {e}", exc_info=True)
+        print(f"[MQTT] ERROR processing message: {e}", exc_info=True, flush=True)
 
 # Global car instance (reused)
 _car_instance = None
@@ -606,81 +606,81 @@ def handle_obstacle_avoidance(command):
             if PID_FILE.exists():
                 PID_FILE.unlink()
     elif command == "stop":
-        print(f"[OBSTACLE_STOP] ===== STOP COMMAND RECEIVED =====")
+        print(f"[OBSTACLE_STOP] ===== STOP COMMAND RECEIVED =====", flush=True)
         
         # CRITICAL: Stop motors IMMEDIATELY first
         try:
             car = get_car()
             if car:
                 car.set_motor_model(0, 0, 0, 0)
-                print("[OBSTACLE_STOP] ✅ Motors stopped immediately")
+                print("[OBSTACLE_STOP] ✅ Motors stopped immediately", flush=True)
             else:
-                print("[OBSTACLE_STOP] ⚠️  Car instance not available")
+                print("[OBSTACLE_STOP] ⚠️  Car instance not available", flush=True)
         except Exception as e:
-            print(f"[OBSTACLE_STOP] ❌ Error stopping motors: {e}")
+            print(f"[OBSTACLE_STOP] ❌ Error stopping motors: {e}", flush=True)
 
         stopped = False
 
         # Always try pkill first (most reliable and aggressive method)
         try:
-            print("[OBSTACLE_STOP] Using pkill -9 to forcefully kill obstacle_navigator.py processes...")
+            print("[OBSTACLE_STOP] Using pkill -9 to forcefully kill obstacle_navigator.py processes...", flush=True)
             result = subprocess.run(
                 ["pkill", "-9", "-f", "obstacle_navigator.py"],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 timeout=2
             )
-            print(f"[OBSTACLE_STOP] pkill return code: {result.returncode}")
+            print(f"[OBSTACLE_STOP] pkill return code: {result.returncode}", flush=True)
             if result.stdout:
-                print(f"[OBSTACLE_STOP] pkill stdout: {result.stdout.decode()}")
+                print(f"[OBSTACLE_STOP] pkill stdout: {result.stdout.decode()}", flush=True)
             if result.stderr:
-                print(f"[OBSTACLE_STOP] pkill stderr: {result.stderr.decode()}")
+                print(f"[OBSTACLE_STOP] pkill stderr: {result.stderr.decode()}", flush=True)
             if result.returncode == 0:
                 stopped = True
-                print("[OBSTACLE_STOP] ✅ pkill -9 killed obstacle_navigator.py processes")
+                print("[OBSTACLE_STOP] ✅ pkill -9 killed obstacle_navigator.py processes", flush=True)
             elif result.returncode == 1:
-                print("[OBSTACLE_STOP] ℹ️  pkill found no matching processes (may already be stopped)")
+                print("[OBSTACLE_STOP] ℹ️  pkill found no matching processes (may already be stopped)", flush=True)
         except subprocess.TimeoutExpired:
-            print("[OBSTACLE_STOP] ⚠️  pkill timed out")
+            print("[OBSTACLE_STOP] ⚠️  pkill timed out", flush=True)
         except Exception as e:
-            print(f"[OBSTACLE_STOP] ❌ Error using pkill: {e}")
+            print(f"[OBSTACLE_STOP] ❌ Error using pkill: {e}", flush=True)
 
         # Also try PID file method
         if PID_FILE.exists():
             try:
                 pid = int(PID_FILE.read_text().strip())
-                print(f"[OBSTACLE_STOP] Found PID file with PID: {pid}")
+                print(f"[OBSTACLE_STOP] Found PID file with PID: {pid}", flush=True)
                 try:
                     os.kill(pid, 0)  # Check if process exists
-                    print(f"[OBSTACLE_STOP] Process {pid} exists, attempting to kill...")
+                    print(f"[OBSTACLE_STOP] Process {pid} exists, attempting to kill...", flush=True)
                     try:
                         pgid = os.getpgid(pid)
-                        print(f"[OBSTACLE_STOP] Killing process group {pgid}")
+                        print(f"[OBSTACLE_STOP] Killing process group {pgid}", flush=True)
                         os.killpg(pgid, signal.SIGKILL)
                         time.sleep(0.2)
                         stopped = True
-                        print(f"[OBSTACLE_STOP] ✅ Killed process group {pgid}")
+                        print(f"[OBSTACLE_STOP] ✅ Killed process group {pgid}", flush=True)
                     except (OSError, ProcessLookupError) as e:
-                        print(f"[OBSTACLE_STOP] Could not kill process group: {e}")
+                        print(f"[OBSTACLE_STOP] Could not kill process group: {e}", flush=True)
                         try:
                             os.kill(pid, signal.SIGKILL)
                             stopped = True
-                            print(f"[OBSTACLE_STOP] ✅ Killed process {pid} directly")
+                            print(f"[OBSTACLE_STOP] ✅ Killed process {pid} directly", flush=True)
                         except (OSError, ProcessLookupError) as e2:
-                            print(f"[OBSTACLE_STOP] Could not kill process {pid}: {e2}")
+                            print(f"[OBSTACLE_STOP] Could not kill process {pid}: {e2}", flush=True)
                 except (OSError, ProcessLookupError):
-                    print(f"[OBSTACLE_STOP] Process {pid} does not exist (stale PID file)")
+                    print(f"[OBSTACLE_STOP] Process {pid} does not exist (stale PID file)", flush=True)
             except (ValueError, OSError) as e:
-                print(f"[OBSTACLE_STOP] Error reading PID file: {e}")
+                print(f"[OBSTACLE_STOP] Error reading PID file: {e}", flush=True)
             finally:
                 # Always remove PID file
                 try:
                     PID_FILE.unlink()
-                    print(f"[OBSTACLE_STOP] Removed PID file")
+                    print(f"[OBSTACLE_STOP] Removed PID file", flush=True)
                 except Exception as e:
-                    print(f"[OBSTACLE_STOP] Could not remove PID file: {e}")
+                    print(f"[OBSTACLE_STOP] Could not remove PID file: {e}", flush=True)
         else:
-            print("[OBSTACLE_STOP] No PID file found")
+            print("[OBSTACLE_STOP] No PID file found", flush=True)
 
         # Verify it's actually stopped
         try:
@@ -694,34 +694,34 @@ def handle_obstacle_avoidance(command):
                 remaining_pids = check_result.stdout.decode().strip().split('\n')
                 remaining_pids = [p for p in remaining_pids if p]
                 if remaining_pids:
-                    print(f"[OBSTACLE_STOP] ⚠️  Warning: Still found processes: {remaining_pids}")
+                    print(f"[OBSTACLE_STOP] ⚠️  Warning: Still found processes: {remaining_pids}", flush=True)
                     for pid_str in remaining_pids:
                         try:
                             pid = int(pid_str)
                             os.kill(pid, signal.SIGKILL)
-                            print(f"[OBSTACLE_STOP] ✅ Force killed remaining process {pid}")
+                            print(f"[OBSTACLE_STOP] ✅ Force killed remaining process {pid}", flush=True)
                         except Exception as e:
-                            print(f"[OBSTACLE_STOP] Could not kill process {pid_str}: {e}")
+                            print(f"[OBSTACLE_STOP] Could not kill process {pid_str}: {e}", flush=True)
                 else:
                     stopped = True
             else:
                 stopped = True
-                print("[OBSTACLE_STOP] ✅ Verified: No obstacle_navigator.py processes running")
+                print("[OBSTACLE_STOP] ✅ Verified: No obstacle_navigator.py processes running", flush=True)
         except Exception as e:
-            print(f"[OBSTACLE_STOP] Error verifying stop: {e}")
+            print(f"[OBSTACLE_STOP] Error verifying stop: {e}", flush=True)
 
         # Stop motors again to be absolutely sure
         try:
             car = get_car()
             if car:
                 car.set_motor_model(0, 0, 0, 0)
-                print("[OBSTACLE_STOP] ✅ Motors stopped again (final check)")
+                print("[OBSTACLE_STOP] ✅ Motors stopped again (final check)", flush=True)
         except Exception as e:
-            print(f"[OBSTACLE_STOP] Error in final motor stop: {e}")
+            print(f"[OBSTACLE_STOP] Error in final motor stop: {e}", flush=True)
 
         # Always report success - motors are guaranteed to be stopped
-        print("[OBSTACLE_STOP] ===== STOP COMPLETE =====")
-        print("✅ Obstacle avoidance stopped")
+        print("[OBSTACLE_STOP] ===== STOP COMPLETE =====", flush=True)
+        print("✅ Obstacle avoidance stopped", flush=True)
 
 def main():
     """Main function - MQTT command listener only, NO sensor handling"""
@@ -730,7 +730,7 @@ def main():
     # IMPORTANT: Do NOT start sensor cache writer!
     # Algorithms (line_follow.py, obstacle_navigator.py) handle sensors themselves
     # This avoids GPIO conflicts
-    print("[command_listener] Starting (NO sensor reading - algorithms handle sensors)")
+    print("[command_listener] Starting (NO sensor reading - algorithms handle sensors)", flush=True)
 
     # Set up MQTT client for command listening
     client = mqtt.Client(client_id="robot_command_listener")
@@ -738,17 +738,16 @@ def main():
     client.on_connect = on_connect
     client.on_message = on_message
     
-    # Add connection status callbacks for debugging
     def on_disconnect(client, userdata, rc):
-        print(f"[MQTT] Disconnected with code: {rc}")
+        print(f"[MQTT] Disconnected with code: {rc}", flush=True)
         if rc != 0:
-            print("[MQTT] Unexpected disconnection, will attempt to reconnect")
+            print("[MQTT] Unexpected disconnection, will attempt to reconnect", flush=True)
     
     def on_subscribe(client, userdata, mid, granted_qos):
-        print(f"[MQTT] Subscribed to topic (mid: {mid}, qos: {granted_qos})")
+        print(f"[MQTT] Subscribed to topic (mid: {mid}, qos: {granted_qos})", flush=True)
     
     def on_log(client, userdata, level, buf):
-        print(f"[MQTT_LOG] {buf}")
+        print(f"[MQTT_LOG] {buf}", flush=True)
     
     client.on_disconnect = on_disconnect
     client.on_subscribe = on_subscribe
@@ -756,16 +755,16 @@ def main():
     # client.on_log = on_log
 
     try:
-        print("[command_listener] Connecting to Adafruit IO...")
+        print("[command_listener] Connecting to Adafruit IO...", flush=True)
         client.connect("io.adafruit.com", 1883, 60)
-        print("[command_listener] Connected! Listening for commands...")
-        print(f"[command_listener] Subscribed to feeds: {list(CONTROL_FEEDS.values())}")
+        print("[command_listener] Connected! Listening for commands...", flush=True)
+        print(f"[command_listener] Subscribed to feeds: {list(CONTROL_FEEDS.values())}", flush=True)
         client.loop_forever()
     except KeyboardInterrupt:
-        print("\n[command_listener] Shutting down...")
+        print("\n[command_listener] Shutting down...", flush=True)
         client.disconnect()
     except Exception as e:
-        print(f"[command_listener] Error: {e}", exc_info=True)
+        print(f"[command_listener] Error: {e}", exc_info=True, flush=True)
 
 if __name__ == "__main__":
     main()
