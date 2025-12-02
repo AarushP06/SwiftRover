@@ -71,34 +71,41 @@ def on_connect(client, userdata, flags, rc):
 def on_message(client, userdata, msg):
     """Callback when message is received"""
     try:
-        feed_name = msg.topic.split('/')[-1]
+        topic = msg.topic
+        feed_name = topic.split('/')[-1]
         value = msg.payload.decode('utf-8')
-
-        print(f"Received command: {feed_name} = {value}")
+        
+        print(f"[MQTT_RAW] Received message on topic: {topic}, feed_name: {feed_name}, value: '{value}'")
 
         # Handle motor control
         if feed_name == CONTROL_FEEDS["motor_control"]:
+            print(f"[MQTT] Received motor_control command: '{value}'")
             handle_motor_control(value)
 
         # Handle LED control
         elif feed_name == CONTROL_FEEDS["led_control"]:
+            print(f"[MQTT] Received led_control command: '{value}'")
             handle_led_control(value)
 
         # Handle buzzer control
         elif feed_name == CONTROL_FEEDS["buzzer_control"]:
+            print(f"[MQTT] Received buzzer_control command: '{value}'")
             handle_buzzer_control(value)
 
         # Handle line tracking
         elif feed_name == CONTROL_FEEDS["line_tracking"]:
+            print(f"[MQTT] Received line_tracking command: '{value}'")
             handle_line_tracking(value)
 
         # Handle obstacle avoidance
         elif feed_name == CONTROL_FEEDS["obstacle_avoidance"]:
             print(f"[MQTT] Received obstacle_avoidance command: '{value}'")
             handle_obstacle_avoidance(value)
+        else:
+            print(f"[MQTT] WARNING: Received message for unknown feed: {feed_name} = {value}")
 
     except Exception as e:
-        print(f"Error processing message: {e}")
+        print(f"[MQTT] ERROR processing message: {e}", exc_info=True)
 
 # Global car instance (reused)
 _car_instance = None
@@ -730,17 +737,35 @@ def main():
     client.username_pw_set(AIO_USERNAME, AIO_KEY)
     client.on_connect = on_connect
     client.on_message = on_message
+    
+    # Add connection status callbacks for debugging
+    def on_disconnect(client, userdata, rc):
+        print(f"[MQTT] Disconnected with code: {rc}")
+        if rc != 0:
+            print("[MQTT] Unexpected disconnection, will attempt to reconnect")
+    
+    def on_subscribe(client, userdata, mid, granted_qos):
+        print(f"[MQTT] Subscribed to topic (mid: {mid}, qos: {granted_qos})")
+    
+    def on_log(client, userdata, level, buf):
+        print(f"[MQTT_LOG] {buf}")
+    
+    client.on_disconnect = on_disconnect
+    client.on_subscribe = on_subscribe
+    # Uncomment for verbose MQTT logging:
+    # client.on_log = on_log
 
     try:
         print("[command_listener] Connecting to Adafruit IO...")
         client.connect("io.adafruit.com", 1883, 60)
         print("[command_listener] Connected! Listening for commands...")
+        print(f"[command_listener] Subscribed to feeds: {list(CONTROL_FEEDS.values())}")
         client.loop_forever()
     except KeyboardInterrupt:
         print("\n[command_listener] Shutting down...")
         client.disconnect()
     except Exception as e:
-        print(f"[command_listener] Error: {e}")
+        print(f"[command_listener] Error: {e}", exc_info=True)
 
 if __name__ == "__main__":
     main()
