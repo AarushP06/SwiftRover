@@ -296,14 +296,68 @@ def obstacle_avoidance():
 
 @app.route('/api/live-data')
 def api_live_data():
-    """Get live sensor data from Adafruit IO"""
+    """Get live sensor data from cache files (written by algorithms) or Adafruit IO fallback"""
     try:
-        ultrasonic = get_adafruit_data("ultrasonic_cm")
-        ir_left = get_adafruit_data("ir_left")
-        ir_center = get_adafruit_data("ir_center")
-        ir_right = get_adafruit_data("ir_right")
-        line_state = get_adafruit_data("line_state")
-        camera_motion = get_adafruit_data("camera_motion")  # Sensor 3: Camera motion detection
+        # Cache file paths (same as used by algorithms)
+        IR_CACHE = Path("/tmp/ir_lmr.txt")
+        ULTRA_CACHE = Path("/tmp/ultra_cm.txt")
+        CACHE_MAX_AGE = 5.0  # Consider cache stale after 5 seconds
+        
+        ultrasonic = None
+        ir_left = None
+        ir_center = None
+        ir_right = None
+        line_state = None
+        
+        # Read from cache files first (algorithms write these directly)
+        now = time.time()
+        
+        # Read ultrasonic from cache
+        if ULTRA_CACHE.exists():
+            try:
+                cache_age = now - ULTRA_CACHE.stat().st_mtime
+                if cache_age < CACHE_MAX_AGE:
+                    ultrasonic_str = ULTRA_CACHE.read_text().strip()
+                    try:
+                        ultrasonic = float(ultrasonic_str)
+                    except ValueError:
+                        pass
+            except Exception:
+                pass
+        
+        # Read IR sensors from cache
+        if IR_CACHE.exists():
+            try:
+                cache_age = now - IR_CACHE.stat().st_mtime
+                if cache_age < CACHE_MAX_AGE:
+                    ir_data = IR_CACHE.read_text().strip()
+                    parts = ir_data.replace(",", " ").split()
+                    if len(parts) >= 3:
+                        ir_left = int(parts[0])
+                        ir_center = int(parts[1])
+                        ir_right = int(parts[2])
+                        # Derive line_state from IR values
+                        active = []
+                        if ir_left: active.append("L")
+                        if ir_center: active.append("M")
+                        if ir_right: active.append("R")
+                        line_state = "".join(active) if active else None
+            except Exception:
+                pass
+        
+        # Fallback to Adafruit IO only if cache is missing or stale
+        if ultrasonic is None:
+            ultrasonic = get_adafruit_data("ultrasonic_cm")
+        if ir_left is None:
+            ir_left = get_adafruit_data("ir_left")
+        if ir_center is None:
+            ir_center = get_adafruit_data("ir_center")
+        if ir_right is None:
+            ir_right = get_adafruit_data("ir_right")
+        if line_state is None:
+            line_state = get_adafruit_data("line_state")
+        
+        camera_motion = get_adafruit_data("camera_motion")  # Still use Adafruit IO for camera
         timestamp = datetime.now().isoformat()
 
         # Save to local database (for offline storage) - only if we have data
@@ -325,7 +379,7 @@ def api_live_data():
             "ir_center": ir_center,
             "ir_right": ir_right,
             "line_state": line_state,
-            "camera_motion": camera_motion,  # Sensor 3: Camera thumbnail (base64 image)
+            "camera_motion": camera_motion,
             "timestamp": timestamp
         }
         return jsonify(data)
