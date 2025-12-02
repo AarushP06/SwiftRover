@@ -312,7 +312,7 @@ def handle_motor_control(action):
         
         speed = 800
         turn_power = 1200
-        drive_sign = -1  # Match car_tui.py behavior
+        drive_sign = 1  # No inversion - motors wired opposite to reference
         
         if action == "forward":
             car.set_motor_model(int(speed)*drive_sign, int(speed)*drive_sign, int(speed)*drive_sign, int(speed)*drive_sign)

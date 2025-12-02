@@ -285,7 +285,7 @@ def main():
     ap.add_argument("--tilt-center", type=int, default=80)
     ap.add_argument("--tilt-step", type=int, default=3)
 
-    ap.add_argument("--invert-drive", action="store_true", default=True)
+    ap.add_argument("--invert-drive", action="store_true", default=False)  # No inversion - motors wired opposite
     ap.add_argument("--invert-turn", action="store_true", default=True)
     ap.add_argument("--pivot", action="store_true", default=True)
 

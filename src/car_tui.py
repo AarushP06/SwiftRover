@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# car_tui.py (direct SPI LED, nested-driver first)
 
 import curses, time, subprocess, os, signal, threading, json, sys
 from pathlib import Path
@@ -183,7 +184,7 @@ def kill_proc(key: str):
 def _popen_group(args): return subprocess.Popen(args, preexec_fn=os.setsid, stdout=None, stderr=None)
 def start_line_follow():
     kill_proc("obs")
-    args=[PY, LF, "--invert-drive","--invert-steer","--debug",
+    args=[PY, LF, "--invert-steer","--debug",
           "--loss-confirm","10","--coast-scale","0.85","--loss-timeout","0",
           "--kp","1000","--kd","380","--base-straight","420","--base-min","180",
           "--tp-gamma","1.2","--pivot","--pivot-err","0.6","--pivot-power","1200",
@@ -196,7 +197,7 @@ def start_obs_nav():
 def stop_obs_nav(): kill_proc("obs")
 
 # ---------------- Drive helpers ----------------
-speed=800; turn_power=1200; drive_sign=-1
+speed=800; turn_power=1200; drive_sign=1  # No inversion - motors wired opposite to reference
 def drive_stop():      car and car.set_motor_model(0,0,0,0)
 def drive_forward():   car and car.set_motor_model(int(speed)*drive_sign, int(speed)*drive_sign, int(speed)*drive_sign, int(speed)*drive_sign)
 def drive_backward():  car and car.set_motor_model(-int(speed)*drive_sign, -int(speed)*drive_sign, -int(speed)*drive_sign, -int(speed)*drive_sign)
@@ -334,4 +335,3 @@ def draw(stdscr):
 
 def main(): curses.wrapper(draw)
 if __name__=="__main__": main()
-

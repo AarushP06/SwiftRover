@@ -3,10 +3,6 @@ import os, json, time, base64, datetime, csv, ssl, sys
 from pathlib import Path
 from typing import Optional
 import paho.mqtt.client as mqtt
-import psycopg2
-import json
-from pathlib import Path
-
 
 BASE = Path(__file__).resolve().parent
 PROJECT_ROOT = BASE.parent.parent  # Go up to project root
@@ -31,31 +27,6 @@ try:
     cv2 = cv2
 except Exception:
     pass
-
-
-def neon_insert(ultra, L, M, R, line_state, cam_status):
-    try:
-        # Try config/neon.json in project root
-        neon_config_path = PROJECT_ROOT / "config" / "neon.json"
-        if not neon_config_path.exists():
-            # Fallback to old location if exists
-            return  # Silently skip if config doesn't exist
-        
-        cfg = json.loads(neon_config_path.read_text())
-        conn = psycopg2.connect(cfg["connection"])
-        cur = conn.cursor()
-        cur.execute("""
-            INSERT INTO telemetry
-                (ultrasonic_cm, ir_left, ir_center, ir_right, line_state, camera_status)
-            VALUES (%s, %s, %s, %s, %s, %s);
-        """, (ultra, L, M, R, line_state, cam_status))
-        conn.commit()
-        cur.close()
-        conn.close()
-    except Exception as e:
-        # Silently fail - neon database is optional
-        pass
-
 
 # Optional picamera2 (better for Raspberry Pi)
 Picamera2 = None
@@ -361,11 +332,6 @@ class Telemetry:
                         self.pub.pub(self.feeds["ir_right"],  R)
                         line_state = f"{'L' if L else '_'}{'M' if M else '_'}{'R' if R else '_'}"
                         self.pub.pub(self.feeds["line_state"], line_state)
-                        status = (self.cam.status() if self.cam else "offline")
-                        # Get ultrasonic value for neon_insert
-                        d = read_ultra_cached() or self.last_ultrasonic
-                        neon_insert(d, L, M, R, line_state, status)
-
                         # Save to local database with both IR and ultrasonic (use last known ultrasonic)
                         if DB_AVAILABLE:
                             timestamp = datetime.datetime.now().isoformat()

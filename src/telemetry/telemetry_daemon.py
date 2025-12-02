@@ -33,12 +33,12 @@ def load_json_candidates(name, fallbacks=()):
 def load_configs():
     # Primary: repo/config/*.json
     ada = load_json_candidates("adafruit.json", fallbacks=[
-        # fallback to course code’s Server/adafruit.json if it exists
+        # fallback to course code's Server/adafruit.json if it exists
         BASE.parent / "adafruit.json"
     ])
     app = load_json_candidates("app.local.json")
     if not app:
-        # fallback to sample defaults if user didn’t create local yet
+        # fallback to sample defaults if user didn't create local yet
         app = load_json_candidates("app.sample.json")
     # normalize structure (support nested {"adafruit":{...}})
     if "adafruit" in ada:
@@ -222,6 +222,7 @@ def main():
                 state = read_line_state()
                 if ir:
                     L, M, R = ir
+                    # Send to Adafruit IO
                     pub.pub("ir_left",   L)
                     pub.pub("ir_center", M)
                     pub.pub("ir_right",  R)

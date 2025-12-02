@@ -21,8 +21,8 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-i
 BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR / "src"))
 from database_sync import (
-    save_to_local_db, 
-    sync_to_cloud, 
+    save_to_local_db,
+    sync_to_cloud,
     check_internet,
     init_local_db,
     get_cloud_connection
@@ -91,7 +91,7 @@ def get_historical_data(date_str=None):
             try:
                 from psycopg2.extras import RealDictCursor
                 c = conn.cursor(cursor_factory=RealDictCursor)
-                
+
                 # Query by date if provided, otherwise get all data
                 if date_str:
                     # Support both date formats: YYYY-MM-DD and full datetime
@@ -109,12 +109,12 @@ def get_historical_data(date_str=None):
                         FROM sensor_data
                         ORDER BY timestamp ASC
                     ''')
-                
+
                 records = c.fetchall()
                 conn.close()
                 print(f"[app] Retrieved {len(records)} records from cloud DB (date: {date_str or 'ALL'})", file=sys.stderr)
                 # Convert to list of tuples for compatibility
-                result = [(r['timestamp'], r['ultrasonic_cm'], r['ir_left'], r['ir_center'], r['ir_right'], r['line_state']) 
+                result = [(r['timestamp'], r['ultrasonic_cm'], r['ir_left'], r['ir_center'], r['ir_right'], r['line_state'])
                         for r in records]
                 if len(result) == 0:
                     print(f"[app] WARNING: No records found in cloud DB for date: {date_str or 'ALL'}", file=sys.stderr)
@@ -130,12 +130,12 @@ def get_historical_data(date_str=None):
                 # Fall through to local DB
         else:
             print(f"[app] Could not connect to cloud DB: {error}", file=sys.stderr)
-    
+
     # Fallback to local DB (for local development or if cloud fails)
     try:
         conn = sqlite3.connect(LOCAL_DB)
         c = conn.cursor()
-        
+
         if date_str:
             c.execute('''
                 SELECT timestamp, ultrasonic_cm, ir_left, ir_center, ir_right, line_state
@@ -150,7 +150,7 @@ def get_historical_data(date_str=None):
                 FROM sensor_data
                 ORDER BY timestamp
             ''')
-        
+
         records = c.fetchall()
         conn.close()
         print(f"[app] Retrieved {len(records)} records from local DB (date: {date_str or 'ALL'})")
@@ -253,7 +253,7 @@ def api_live_data():
         line_state = get_adafruit_data("line_state")
         camera_motion = get_adafruit_data("camera_motion")  # Sensor 3: Camera motion detection
         timestamp = datetime.now().isoformat()
-        
+
         # Save to local database (for offline storage) - only if we have data
         try:
             save_to_local_db(
@@ -266,7 +266,7 @@ def api_live_data():
             )
         except Exception as e:
             print(f"Warning: Could not save to local DB: {e}")
-        
+
         data = {
             "ultrasonic_cm": ultrasonic,
             "ir_left": ir_left,
@@ -298,7 +298,7 @@ def api_historical_data():
     try:
         if not request.json:
             return jsonify({"error": "JSON body required"}), 400
-        
+
         date_str = request.json.get('date')  # Optional - if None, returns all data
         records = get_historical_data(date_str)
         data = {
@@ -320,11 +320,11 @@ def api_control_motor():
     try:
         if not request.json:
             return jsonify({"error": "JSON body required"}), 400
-        
+
         action = request.json.get('action')  # forward, backward, left, right, stop
         if not isinstance(action, str) or action not in ['forward', 'backward', 'left', 'right', 'stop']:
             return jsonify({"error": "Invalid action"}), 400
-        
+
         # Send command to Adafruit IO (which will be picked up by Raspberry Pi)
         success = send_adafruit_command("motor_control", action)
         return jsonify({"success": success, "action": action})
@@ -338,11 +338,11 @@ def api_control_led():
     try:
         if not request.json:
             return jsonify({"error": "JSON body required"}), 400
-        
+
         state = request.json.get('state')  # on, off
         if not isinstance(state, str) or state not in ['on', 'off']:
             return jsonify({"error": "Invalid state"}), 400
-        
+
         success = send_adafruit_command("led_control", state)
         return jsonify({"success": success, "state": state})
     except Exception as e:
@@ -355,11 +355,11 @@ def api_control_buzzer():
     try:
         if not request.json:
             return jsonify({"error": "JSON body required"}), 400
-        
+
         state = request.json.get('state')  # on, off
         if not isinstance(state, str) or state not in ['on', 'off']:
             return jsonify({"error": "Invalid state"}), 400
-        
+
         success = send_adafruit_command("buzzer_control", state)
         return jsonify({"success": success, "state": state})
     except Exception as e:
@@ -413,13 +413,13 @@ def start_sync_worker():
             if check_internet():
                 sync_to_cloud()
             time.sleep(300)  # Sync every 5 minutes
-    
+
     thread = Thread(target=sync_loop, daemon=True)
     thread.start()
 
 if __name__ == '__main__':
     # Start sync worker
     start_sync_worker()
-    
+
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)

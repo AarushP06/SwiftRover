@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-
+"""
+Ultrasonic Cache Writer
+Writes ultrasonic sensor readings to /tmp/ultra_cm.txt for telemetry daemon
+"""
 import time
 import sys
 import os
