@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import time, argparse, sys, signal, os
+import time, argparse, sys
 from pathlib import Path
 from typing import Optional
 
@@ -195,6 +195,7 @@ class HeadUltrasonicNavigator:
         cur_p, cur_t = self.ps.pos, self.to.pos
         self.pan.angle(int(clamp(pan_deg, self.pan.min_deg, self.pan.max_deg)))
         self.tilt.angle(int(clamp(tilt_deg, self.tilt.min_deg, self.tilt.max_deg)))
+        # Use _read_cm which now checks cache first
         d=self._avg_cm(n=2,delay=0.0)
         # return to sweep immediately
         self.pan.angle(cur_p); self.tilt.angle(cur_t)
@@ -234,39 +235,39 @@ class HeadUltrasonicNavigator:
 
         # Check for obstacles using last_ahead (outside the if/else!)
         if self.last_ahead <= self.obs_th:
-                # STOP immediately
-                self.stop()
-                if verbose: print(f"[NAV] <= {self.obs_th:.0f}cm -> STOP + REVERSE")
-                # reverse
-                self.reverse(t=self.reverse_time)
+            # STOP immediately
+            self.stop()
+            if verbose: print(f"[NAV] <= {self.obs_th:.0f}cm -> STOP + REVERSE")
+            # reverse
+            self.reverse(t=self.reverse_time)
 
-                # quick L/R + up/down probe around center
-                center_p = self.pan.center
-                center_t = self.tilt.center
-                # left/right near center tilt
-                left_mid  = self._peek_pan_tilt(center_p+25, center_t)
-                right_mid = self._peek_pan_tilt(center_p-25, center_t)
-                # up/down straight ahead (check over/under)
-                up_ahead   = self._peek_pan_tilt(center_p, min(self.tilt.max_deg, center_t+15))
-                down_ahead = self._peek_pan_tilt(center_p, max(self.tilt.min_deg, center_t-15))
-                if verbose: print(f"[NAV] probe Lm={left_mid:.1f} Rm={right_mid:.1f} Up={up_ahead:.1f} Dn={down_ahead:.1f}")
+            # quick L/R + up/down probe around center
+            center_p = self.pan.center
+            center_t = self.tilt.center
+            # left/right near center tilt
+            left_mid  = self._peek_pan_tilt(center_p+25, center_t)
+            right_mid = self._peek_pan_tilt(center_p-25, center_t)
+            # up/down straight ahead (check over/under)
+            up_ahead   = self._peek_pan_tilt(center_p, min(self.tilt.max_deg, center_t+15))
+            down_ahead = self._peek_pan_tilt(center_p, max(self.tilt.min_deg, center_t-15))
+            if verbose: print(f"[NAV] probe Lm={left_mid:.1f} Rm={right_mid:.1f} Up={up_ahead:.1f} Dn={down_ahead:.1f}")
 
-                # choose best horizontal side; if both bad, prefer the one with better vertical clearance
-                L = max(left_mid, up_ahead, down_ahead) if left_mid < self.obs_th else left_mid
-                R = max(right_mid, up_ahead, down_ahead) if right_mid < self.obs_th else right_mid
-                if L > R:
-                    dur=self._pivot_time_from_dist(L)
-                    if verbose: print(f"[NAV] pivot LEFT for {dur:.2f}s")
-                    self.pivot_left(dur=dur)
-                else:
-                    dur=self._pivot_time_from_dist(R)
-                    if verbose: print(f"[NAV] pivot RIGHT for {dur:.2f}s")
-                    self.pivot_right(dur=dur)
+            # choose best horizontal side; if both bad, prefer the one with better vertical clearance
+            L = max(left_mid, up_ahead, down_ahead) if left_mid < self.obs_th else left_mid
+            R = max(right_mid, up_ahead, down_ahead) if right_mid < self.obs_th else right_mid
+            if L > R:
+                dur=self._pivot_time_from_dist(L)
+                if verbose: print(f"[NAV] pivot LEFT for {dur:.2f}s")
+                self.pivot_left(dur=dur)
+            else:
+                dur=self._pivot_time_from_dist(R)
+                if verbose: print(f"[NAV] pivot RIGHT for {dur:.2f}s")
+                self.pivot_right(dur=dur)
 
-                # short forward roll to clear obstacle zone
-                self.forward(int(self.forward_power*0.7))
-                time.sleep(self.post_roll_time)
-                self.stop()
+            # short forward roll to clear obstacle zone
+            self.forward(int(self.forward_power*0.7))
+            time.sleep(self.post_roll_time)
+            self.stop()
 
 # ---------- demo runner ----------
 def main():
@@ -284,7 +285,7 @@ def main():
     ap.add_argument("--tilt-center", type=int, default=80)
     ap.add_argument("--tilt-step", type=int, default=3)
 
-    ap.add_argument("--invert-drive", action="store_true", default=False)
+    ap.add_argument("--invert-drive", action="store_true", default=True)
     ap.add_argument("--invert-turn", action="store_true", default=True)
     ap.add_argument("--pivot", action="store_true", default=True)
 
@@ -329,37 +330,6 @@ def main():
         reverse_time=args.reverse_time, pivot_min_dur=args.pivot_min_dur, post_roll_time=args.post_roll
     )
 
-    # PID file for process management
-    PID_FILE = Path("/tmp/obstacle_navigator.pid")
-    
-    # Signal handler to stop motors when killed
-    def signal_handler(signum, frame):
-        print(f"\n[NAV] Received signal {signum}, stopping motors...")
-        nav.stop()
-        try:
-            pan.angle(args.pan_center)
-            tilt.angle(args.tilt_center)
-        except Exception:
-            pass
-        try:
-            if PID_FILE.exists():
-                PID_FILE.unlink()
-        except Exception:
-            pass
-        print("[NAV] Stopped.")
-        sys.exit(0)
-    
-    # Register signal handlers
-    signal.signal(signal.SIGTERM, signal_handler)
-    signal.signal(signal.SIGINT, signal_handler)
-    
-    # Write PID file
-    try:
-        PID_FILE.write_text(str(os.getpid()))
-        print(f"[NAV] PID file written: {PID_FILE} (PID: {os.getpid()})")
-    except Exception as e:
-        print(f"[NAV] Warning: Could not write PID file: {e}")
-
     print("Head-scan navigator ready. Ctrl+C to stop.")
     
     # Write initial distance reading to cache for telemetry
@@ -381,11 +351,6 @@ def main():
         nav.stop()
         try:
             pan.angle(args.pan_center); tilt.angle(args.tilt_center)
-        except Exception:
-            pass
-        try:
-            if PID_FILE.exists():
-                PID_FILE.unlink()
         except Exception:
             pass
         print("\nStopped.")

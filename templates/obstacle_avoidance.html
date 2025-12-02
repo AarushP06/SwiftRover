@@ -197,55 +197,71 @@ endblock %} {% block content %}
 </div>
 {% endblock %} {% block scripts %}
 <script>
-  async function startObstacleAvoidance() {
-    try {
-      const response = await fetch("/api/obstacle-avoidance/start", {
-        method: "POST",
+  let isRunning = false;
+
+  function startObstacleAvoidance() {
+    fetch("/api/obstacle-avoidance/start", {
+      method: "POST",
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.success) {
+          isRunning = true;
+          document.getElementById("start-btn").disabled = true;
+          document.getElementById("stop-btn").disabled = false;
+          if (typeof showNotification === "function") {
+            showNotification("✓ Obstacle avoidance started", "success");
+          }
+        } else {
+          alert("Failed to start obstacle avoidance");
+        }
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+        alert("Error starting obstacle avoidance");
       });
-      const data = await response.json();
-      if (data.success) {
-        document.getElementById("start-btn").disabled = true;
-        document.getElementById("stop-btn").disabled = false;
-        showNotification("✓ Obstacle avoidance started", "success");
-      } else {
-        showNotification("✗ Failed to start obstacle avoidance", "error");
-      }
-    } catch (error) {
-      showNotification("✗ Connection error", "error");
-    }
   }
 
-  async function stopObstacleAvoidance() {
-    try {
-      const response = await fetch("/api/obstacle-avoidance/stop", {
-        method: "POST",
+  function stopObstacleAvoidance() {
+    fetch("/api/obstacle-avoidance/stop", {
+      method: "POST",
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.success) {
+          isRunning = false;
+          document.getElementById("start-btn").disabled = false;
+          document.getElementById("stop-btn").disabled = true;
+          if (typeof showNotification === "function") {
+            showNotification("✓ Obstacle avoidance stopped", "success");
+          }
+        } else {
+          alert("Failed to stop obstacle avoidance");
+        }
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+        alert("Error stopping obstacle avoidance");
       });
-      const data = await response.json();
-      if (data.success) {
-        document.getElementById("start-btn").disabled = false;
-        document.getElementById("stop-btn").disabled = true;
-        showNotification("✓ Obstacle avoidance stopped", "success");
-      } else {
-        showNotification("✗ Failed to stop obstacle avoidance", "error");
-      }
-    } catch (error) {
-      showNotification("✗ Connection error", "error");
-    }
   }
 
-  // Update distance
-  async function updateDistance() {
-    try {
-      const response = await fetch("/api/live-data");
-      const data = await response.json();
-      document.getElementById("distance-display").textContent =
-        (data.ultrasonic_cm || "--") + " cm";
-    } catch (error) {
-      console.error("Error updating distance:", error);
-    }
+  // Update distance display
+  function updateDistance() {
+    fetch("/api/live-data")
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.ultrasonic_cm !== null) {
+          document.getElementById("distance-display").textContent =
+            parseFloat(data.ultrasonic_cm).toFixed(1) + " cm";
+        }
+      })
+      .catch((error) => {
+        console.error("Error fetching distance:", error);
+      });
   }
 
+  // Update distance every 2 seconds
+  setInterval(updateDistance, 2000);
   updateDistance();
-  setInterval(updateDistance, 500);
 </script>
 {% endblock %}

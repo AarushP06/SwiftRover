@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# Amine Baha (2332522) — car_tui.py (direct SPI LED, nested-driver first)
 
 import curses, time, subprocess, os, signal, threading, json, sys
 from pathlib import Path

@@ -21,8 +21,8 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-i
 BASE_DIR = Path(__file__).parent
 sys.path.insert(0, str(BASE_DIR / "src"))
 from database_sync import (
-    save_to_local_db,
-    sync_to_cloud,
+    save_to_local_db, 
+    sync_to_cloud, 
     check_internet,
     init_local_db,
     get_cloud_connection
@@ -91,7 +91,7 @@ def get_historical_data(date_str=None):
             try:
                 from psycopg2.extras import RealDictCursor
                 c = conn.cursor(cursor_factory=RealDictCursor)
-
+                
                 # Query by date if provided, otherwise get all data
                 if date_str:
                     # Support both date formats: YYYY-MM-DD and full datetime
@@ -109,12 +109,12 @@ def get_historical_data(date_str=None):
                         FROM sensor_data
                         ORDER BY timestamp ASC
                     ''')
-
+                
                 records = c.fetchall()
                 conn.close()
                 print(f"[app] Retrieved {len(records)} records from cloud DB (date: {date_str or 'ALL'})", file=sys.stderr)
                 # Convert to list of tuples for compatibility
-                result = [(r['timestamp'], r['ultrasonic_cm'], r['ir_left'], r['ir_center'], r['ir_right'], r['line_state'])
+                result = [(r['timestamp'], r['ultrasonic_cm'], r['ir_left'], r['ir_center'], r['ir_right'], r['line_state']) 
                         for r in records]
                 if len(result) == 0:
                     print(f"[app] WARNING: No records found in cloud DB for date: {date_str or 'ALL'}", file=sys.stderr)
@@ -130,12 +130,12 @@ def get_historical_data(date_str=None):
                 # Fall through to local DB
         else:
             print(f"[app] Could not connect to cloud DB: {error}", file=sys.stderr)
-
+    
     # Fallback to local DB (for local development or if cloud fails)
     try:
         conn = sqlite3.connect(LOCAL_DB)
         c = conn.cursor()
-
+        
         if date_str:
             c.execute('''
                 SELECT timestamp, ultrasonic_cm, ir_left, ir_center, ir_right, line_state
@@ -150,7 +150,7 @@ def get_historical_data(date_str=None):
                 FROM sensor_data
                 ORDER BY timestamp
             ''')
-
+        
         records = c.fetchall()
         conn.close()
         print(f"[app] Retrieved {len(records)} records from local DB (date: {date_str or 'ALL'})")
@@ -163,25 +163,10 @@ def get_historical_data(date_str=None):
 # Adafruit IO Functions
 # ============================================================================
 
-# Cache for Adafruit IO data to reduce API calls (free tier has 30/min limit)
-_adafruit_cache = {}
-_adafruit_cache_time = {}
-ADAFRUIT_CACHE_TTL = 5  # Cache for 5 seconds
-
 def get_adafruit_data(feed_key):
-    """Get latest value from Adafruit IO feed via HTTP (with caching)"""
-    global _adafruit_cache, _adafruit_cache_time
-    
+    """Get latest value from Adafruit IO feed via HTTP"""
     if not AIO_USERNAME or not AIO_KEY:
         return None
-    
-    # Check cache first
-    now = time.time()
-    if feed_key in _adafruit_cache:
-        cache_age = now - _adafruit_cache_time.get(feed_key, 0)
-        if cache_age < ADAFRUIT_CACHE_TTL:
-            return _adafruit_cache[feed_key]
-    
     try:
         feed_name = AIO_FEEDS.get(feed_key, "")
         if not feed_name:
@@ -191,69 +176,32 @@ def get_adafruit_data(feed_key):
         response = requests.get(url, headers=headers, timeout=5)
         if response.status_code == 200:
             data = response.json()
-            value = data.get("value")
-            # Update cache
-            _adafruit_cache[feed_key] = value
-            _adafruit_cache_time[feed_key] = now
-            return value
-        elif response.status_code == 429:
-            # Rate limited - return cached value if available
-            return _adafruit_cache.get(feed_key)
+            return data.get("value")
         return None
     except Exception as e:
         print(f"Error fetching Adafruit data: {e}")
-        # Return cached value on error
-        return _adafruit_cache.get(feed_key)
-
-# Rate limiting tracker
-_last_command_time = {}
-RATE_LIMIT_SECONDS = 2  # Minimum seconds between commands to same feed
+        return None
 
 def send_adafruit_command(feed_key, value):
-    """Send command to Adafruit IO feed with rate limiting protection"""
-    global _last_command_time
-    
-    app.logger.info(f"[SEND_COMMAND] Attempting to send command: feed_key='{feed_key}', value='{value}'")
-    
-    # Check local rate limit to prevent spam
-    now = time.time()
-    last_time = _last_command_time.get(feed_key, 0)
-    if now - last_time < RATE_LIMIT_SECONDS:
-        wait_time = RATE_LIMIT_SECONDS - (now - last_time)
-        app.logger.warning(f"[SEND_COMMAND] Local rate limit: wait {wait_time:.1f}s before sending to {feed_key}")
-        return "rate_limited"
-    
+    """Send command to Adafruit IO feed"""
     if not AIO_USERNAME or not AIO_KEY:
-        app.logger.error(f"[SEND_COMMAND] ERROR: Missing credentials - AIO_USERNAME={bool(AIO_USERNAME)}, AIO_KEY={bool(AIO_KEY)}")
         return False
     try:
         feed_name = AIO_FEEDS.get(feed_key, "")
         if not feed_name:
-            app.logger.error(f"[SEND_COMMAND] ERROR: Feed key '{feed_key}' not found in AIO_FEEDS. Available keys: {list(AIO_FEEDS.keys())}")
+            print(f"Feed key '{feed_key}' not found in AIO_FEEDS")
             return False
-        app.logger.info(f"[SEND_COMMAND] Using feed name: '{feed_name}' for key '{feed_key}'")
         url = f"https://io.adafruit.com/api/v2/{AIO_USERNAME}/feeds/{feed_name}/data"
         headers = {"X-AIO-Key": AIO_KEY, "Content-Type": "application/json"}
         data = {"value": str(value)}
-        app.logger.info(f"[SEND_COMMAND] POST to {url} with value='{value}'")
         response = requests.post(url, headers=headers, json=data, timeout=5)
-        
-        # Handle rate limiting from Adafruit IO
-        if response.status_code == 429:
-            app.logger.error(f"[SEND_COMMAND] RATE LIMITED by Adafruit IO: {response.text}")
-            return "rate_limited"
-        
         # Accept both 200 (OK) and 201 (Created) as success
         success = response.status_code in [200, 201]
-        if success:
-            _last_command_time[feed_key] = now  # Update last command time
-            app.logger.info(f"[SEND_COMMAND] SUCCESS: Command sent successfully (status {response.status_code})")
-            app.logger.debug(f"[SEND_COMMAND] Response body: {response.text[:200]}")
-        else:
-            app.logger.error(f"[SEND_COMMAND] ERROR: Adafruit IO returned status {response.status_code}: {response.text}")
+        if not success:
+            print(f"Adafruit IO returned status {response.status_code}: {response.text}")
         return success
     except Exception as e:
-        app.logger.exception(f"[SEND_COMMAND] EXCEPTION: Error sending Adafruit command: {e}")
+        print(f"Error sending Adafruit command: {e}")
         return False
 
 # ============================================================================
@@ -305,7 +253,7 @@ def api_live_data():
         line_state = get_adafruit_data("line_state")
         camera_motion = get_adafruit_data("camera_motion")  # Sensor 3: Camera motion detection
         timestamp = datetime.now().isoformat()
-
+        
         # Save to local database (for offline storage) - only if we have data
         try:
             save_to_local_db(
@@ -318,7 +266,7 @@ def api_live_data():
             )
         except Exception as e:
             print(f"Warning: Could not save to local DB: {e}")
-
+        
         data = {
             "ultrasonic_cm": ultrasonic,
             "ir_left": ir_left,
@@ -350,7 +298,7 @@ def api_historical_data():
     try:
         if not request.json:
             return jsonify({"error": "JSON body required"}), 400
-
+        
         date_str = request.json.get('date')  # Optional - if None, returns all data
         records = get_historical_data(date_str)
         data = {
@@ -372,16 +320,14 @@ def api_control_motor():
     try:
         if not request.json:
             return jsonify({"error": "JSON body required"}), 400
-
+        
         action = request.json.get('action')  # forward, backward, left, right, stop
         if not isinstance(action, str) or action not in ['forward', 'backward', 'left', 'right', 'stop']:
             return jsonify({"error": "Invalid action"}), 400
-
+        
         # Send command to Adafruit IO (which will be picked up by Raspberry Pi)
-        result = send_adafruit_command("motor_control", action)
-        if result == "rate_limited":
-            return jsonify({"success": False, "action": action, "rate_limited": True}), 429
-        return jsonify({"success": bool(result), "action": action})
+        success = send_adafruit_command("motor_control", action)
+        return jsonify({"success": success, "action": action})
     except Exception as e:
         print(f"Error in api_control_motor: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -392,15 +338,13 @@ def api_control_led():
     try:
         if not request.json:
             return jsonify({"error": "JSON body required"}), 400
-
+        
         state = request.json.get('state')  # on, off
         if not isinstance(state, str) or state not in ['on', 'off']:
             return jsonify({"error": "Invalid state"}), 400
-
-        result = send_adafruit_command("led_control", state)
-        if result == "rate_limited":
-            return jsonify({"success": False, "state": state, "rate_limited": True}), 429
-        return jsonify({"success": bool(result), "state": state})
+        
+        success = send_adafruit_command("led_control", state)
+        return jsonify({"success": success, "state": state})
     except Exception as e:
         print(f"Error in api_control_led: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -411,15 +355,13 @@ def api_control_buzzer():
     try:
         if not request.json:
             return jsonify({"error": "JSON body required"}), 400
-
+        
         state = request.json.get('state')  # on, off
         if not isinstance(state, str) or state not in ['on', 'off']:
             return jsonify({"error": "Invalid state"}), 400
-
-        result = send_adafruit_command("buzzer_control", state)
-        if result == "rate_limited":
-            return jsonify({"success": False, "state": state, "rate_limited": True}), 429
-        return jsonify({"success": bool(result), "state": state})
+        
+        success = send_adafruit_command("buzzer_control", state)
+        return jsonify({"success": success, "state": state})
     except Exception as e:
         print(f"Error in api_control_buzzer: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -428,10 +370,8 @@ def api_control_buzzer():
 def api_line_tracking_start():
     """Start line tracking algorithm"""
     try:
-        result = send_adafruit_command("line_tracking", "start")
-        if result == "rate_limited":
-            return jsonify({"success": False, "message": "Rate limited - please wait 2 seconds", "rate_limited": True}), 429
-        return jsonify({"success": bool(result)})
+        success = send_adafruit_command("line_tracking", "start")
+        return jsonify({"success": success})
     except Exception as e:
         print(f"Error in api_line_tracking_start: {e}")
         return jsonify({"error": "Internal server error"}), 500
@@ -440,51 +380,31 @@ def api_line_tracking_start():
 def api_line_tracking_stop():
     """Stop line tracking algorithm"""
     try:
-        result = send_adafruit_command("line_tracking", "stop")
-        if result == "rate_limited":
-            return jsonify({"success": False, "message": "Rate limited - please wait 2 seconds", "rate_limited": True}), 429
-        return jsonify({"success": True, "message": "Stop command sent"})
+        success = send_adafruit_command("line_tracking", "stop")
+        return jsonify({"success": success})
     except Exception as e:
         print(f"Error in api_line_tracking_stop: {e}")
-        return jsonify({"success": False, "message": "Error sending stop command"})
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/obstacle-avoidance/start', methods=['POST'])
 def api_obstacle_avoidance_start():
     """Start obstacle avoidance algorithm"""
-    app.logger.info("[API_START] ===== Obstacle avoidance start requested =====")
     try:
-        result = send_adafruit_command("obstacle_avoidance", "start")
-        if result == "rate_limited":
-            app.logger.warning("[API_START] ⚠️ Rate limited - please wait before retrying")
-            return jsonify({"success": False, "message": "Rate limited - please wait 2 seconds", "rate_limited": True}), 429
-        elif result:
-            app.logger.info("[API_START] ✅ Command sent successfully to Adafruit IO")
-            return jsonify({"success": True, "sent": True})
-        else:
-            app.logger.error("[API_START] ❌ FAILED to send command to Adafruit IO")
-            return jsonify({"success": False, "sent": False})
+        success = send_adafruit_command("obstacle_avoidance", "start")
+        return jsonify({"success": success})
     except Exception as e:
-        app.logger.exception(f"Error in api_obstacle_avoidance_start: {e}")
-        return jsonify({"error": "Internal server error", "sent": False}), 500
+        print(f"Error in api_obstacle_avoidance_start: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 @app.route('/api/obstacle-avoidance/stop', methods=['POST'])
 def api_obstacle_avoidance_stop():
     """Stop obstacle avoidance algorithm"""
-    app.logger.info("[API_STOP] ===== Obstacle avoidance stop requested =====")
     try:
-        result = send_adafruit_command("obstacle_avoidance", "stop")
-        if result == "rate_limited":
-            app.logger.warning("[API_STOP] ⚠️ Rate limited - please wait before retrying")
-            return jsonify({"success": False, "message": "Rate limited - please wait 2 seconds", "rate_limited": True}), 429
-        elif result:
-            app.logger.info("[API_STOP] ✅ Command sent successfully to Adafruit IO")
-            return jsonify({"success": True, "message": "Stop command sent", "sent": True})
-        else:
-            app.logger.error("[API_STOP] ❌ FAILED to send command to Adafruit IO")
-            return jsonify({"success": False, "message": "Failed to send stop command", "sent": False})
+        success = send_adafruit_command("obstacle_avoidance", "stop")
+        return jsonify({"success": success})
     except Exception as e:
-        app.logger.exception(f"[API_STOP] ❌ EXCEPTION in api_obstacle_avoidance_stop: {e}")
-        return jsonify({"success": False, "message": "Error sending stop command", "sent": False, "error": str(e)})
+        print(f"Error in api_obstacle_avoidance_stop: {e}")
+        return jsonify({"error": "Internal server error"}), 500
 
 def start_sync_worker():
     """Start background thread for database sync"""
@@ -493,13 +413,13 @@ def start_sync_worker():
             if check_internet():
                 sync_to_cloud()
             time.sleep(300)  # Sync every 5 minutes
-
+    
     thread = Thread(target=sync_loop, daemon=True)
     thread.start()
 
 if __name__ == '__main__':
     # Start sync worker
     start_sync_worker()
-
+    
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=True)

@@ -166,59 +166,73 @@
 </div>
 {% endblock %} {% block scripts %}
 <script>
-  async function startLineTracking() {
-    try {
-      const response = await fetch("/api/line-tracking/start", {
-        method: "POST",
+  let isRunning = false;
+
+  function startLineTracking() {
+    fetch("/api/line-tracking/start", {
+      method: "POST",
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.success) {
+          isRunning = true;
+          document.getElementById("start-btn").disabled = true;
+          document.getElementById("stop-btn").disabled = false;
+          if (typeof showNotification === "function") {
+            showNotification("✓ Line tracking started", "success");
+          }
+        } else {
+          alert("Failed to start line tracking");
+        }
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+        alert("Error starting line tracking");
       });
-      const data = await response.json();
-      if (data.success) {
-        document.getElementById("start-btn").disabled = true;
-        document.getElementById("stop-btn").disabled = false;
-        showNotification("✓ Line tracking started", "success");
-      } else {
-        showNotification("✗ Failed to start line tracking", "error");
-      }
-    } catch (error) {
-      showNotification("✗ Connection error", "error");
-    }
   }
 
-  async function stopLineTracking() {
-    try {
-      const response = await fetch("/api/line-tracking/stop", {
-        method: "POST",
+  function stopLineTracking() {
+    fetch("/api/line-tracking/stop", {
+      method: "POST",
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        if (data.success) {
+          isRunning = false;
+          document.getElementById("start-btn").disabled = false;
+          document.getElementById("stop-btn").disabled = true;
+          if (typeof showNotification === "function") {
+            showNotification("✓ Line tracking stopped", "success");
+          }
+        } else {
+          alert("Failed to stop line tracking");
+        }
+      })
+      .catch((error) => {
+        console.error("Error:", error);
+        alert("Error stopping line tracking");
       });
-      const data = await response.json();
-      if (data.success) {
-        document.getElementById("start-btn").disabled = false;
-        document.getElementById("stop-btn").disabled = true;
-        showNotification("✓ Line tracking stopped", "success");
-      } else {
-        showNotification("✗ Failed to stop line tracking", "error");
-      }
-    } catch (error) {
-      showNotification("✗ Connection error", "error");
-    }
   }
 
   // Update sensor status
-  async function updateSensorStatus() {
-    try {
-      const response = await fetch("/api/live-data");
-      const data = await response.json();
-      document.getElementById("ir-left-status").textContent =
-        data.ir_left || "--";
-      document.getElementById("ir-center-status").textContent =
-        data.ir_center || "--";
-      document.getElementById("ir-right-status").textContent =
-        data.ir_right || "--";
-    } catch (error) {
-      console.error("Error updating sensor status:", error);
-    }
+  function updateSensorStatus() {
+    fetch("/api/live-data")
+      .then((response) => response.json())
+      .then((data) => {
+        document.getElementById("ir-left-status").textContent =
+          data.ir_left || "--";
+        document.getElementById("ir-center-status").textContent =
+          data.ir_center || "--";
+        document.getElementById("ir-right-status").textContent =
+          data.ir_right || "--";
+      })
+      .catch((error) => {
+        console.error("Error fetching sensor status:", error);
+      });
   }
 
+  // Update sensor status every 2 seconds
+  setInterval(updateSensorStatus, 2000);
   updateSensorStatus();
-  setInterval(updateSensorStatus, 1000);
 </script>
 {% endblock %}

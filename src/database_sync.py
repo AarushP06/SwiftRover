@@ -78,7 +78,7 @@ def mark_as_synced(record_ids):
         c = conn.cursor()
         sync_time = datetime.now().isoformat()
         placeholders = ','.join('?' * len(record_ids))
-        c.execute(f'UPDATE sensor_data SET synced = 1, sync_timestamp = ? WHERE id IN ({placeholders})',
+        c.execute(f'UPDATE sensor_data SET synced = 1, sync_timestamp = ? WHERE id IN ({placeholders})', 
                  [sync_time] + list(record_ids))
         conn.commit()
         conn.close()
@@ -92,7 +92,7 @@ def get_cloud_connection():
     cloud_db_url = os.environ.get("DATABASE_URL", "")
     if not cloud_db_url:
         return None, "No DATABASE_URL set"
-
+    
     try:
         # Parse connection string and ensure SSL is properly configured
         # Neon.com requires SSL connections
@@ -101,7 +101,7 @@ def get_cloud_connection():
             # Add sslmode if not present
             separator = "&" if "?" in cloud_db_url else "?"
             cloud_db_url = f"{cloud_db_url}{separator}sslmode=require"
-
+        
         # Connect with timeout
         # Note: sslmode in connection string takes precedence over parameter
         conn = psycopg2.connect(
@@ -122,21 +122,21 @@ def sync_to_cloud():
     if not cloud_db_url:
         print("No DATABASE_URL set, skipping cloud sync", file=sys.stderr)
         return False
-
+    
     unsynced = get_unsynced_records()
     if not unsynced:
         return True
-
+    
     print(f"[sync] Found {len(unsynced)} unsynced records to sync", file=sys.stderr)
-
+    
     conn, error = get_cloud_connection()
     if conn is None:
         print(f"[sync] Failed to connect to cloud database: {error}", file=sys.stderr)
         return False
-
+    
     try:
         c = conn.cursor()
-
+        
         # Ensure table exists with proper schema
         c.execute('''
             CREATE TABLE IF NOT EXISTS sensor_data (
@@ -150,7 +150,7 @@ def sync_to_cloud():
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         ''')
-
+        
         # Create unique constraint for ON CONFLICT to work
         # Check if constraint already exists
         c.execute('''
@@ -158,7 +158,7 @@ def sync_to_cloud():
             WHERE conname = 'sensor_data_unique'
         ''')
         constraint_exists = c.fetchone()
-
+        
         if not constraint_exists:
             try:
                 # Create unique constraint
@@ -176,9 +176,9 @@ def sync_to_cloud():
                     ''')
                 except Exception:
                     pass  # Index might already exist
-
+        
         conn.commit()
-
+        
         # Insert unsynced records (skip duplicates)
         # Convert SQLite timestamp strings to PostgreSQL TIMESTAMP
         records = []
@@ -191,7 +191,7 @@ def sync_to_cloud():
                     dt = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
                 else:
                     dt = timestamp_str
-
+                
                 records.append((
                     dt,
                     r[2] if r[2] is not None else None,  # ultrasonic_cm
@@ -203,11 +203,11 @@ def sync_to_cloud():
             except Exception as e:
                 print(f"Warning: Skipping record {r[0]} due to timestamp error: {e}")
                 continue
-
+        
         if not records:
             conn.close()
             return True
-
+        
         # Use ON CONFLICT - try constraint name first, then column list
         inserted_count = 0
         try:
@@ -244,18 +244,18 @@ def sync_to_cloud():
                 conn.rollback()
                 conn.close()
                 return False
-
+        
         conn.commit()
-
+        
         # Mark as synced only if insert was successful
         # Mark all records that were prepared (even if some were duplicates and not inserted)
         record_ids = [r[0] for r in unsynced]
         if record_ids:
             mark_as_synced(record_ids)
             print(f"[sync] Marked {len(record_ids)} records as synced", file=sys.stderr)
-
+        
         conn.close()
-
+        
         print(f"[sync] Successfully synced {len(records)} records to cloud (inserted: {inserted_count}, duplicates skipped: {len(records) - inserted_count}) at {datetime.now().strftime('%H:%M:%S')}", file=sys.stderr)
         return True
     except Exception as e:
@@ -287,7 +287,7 @@ def sync_worker():
 if __name__ == "__main__":
     # Initialize database
     init_local_db()
-
+    
     # Try to sync immediately
     if check_internet():
         sync_to_cloud()
